@@ -10,6 +10,16 @@ terminado em
   - [Produtores e consumidores](#produtores-e-consumidores)
     - [Mensageria e Kafka](#mensageria-e-kafka)
     - [Instalando o Kafka localmente](#instalando-o-kafka-localmente)
+      - [Erro comum na instalação do kafka](#erro-comum-na-instalação-do-kafka)
+      - [bin/kafka-server-start config/server.properties](#binkafka-server-start-configserverproperties)
+      - [local de persistencia do kakfa](#local-de-persistencia-do-kakfa)
+        - [zookeeper](#zookeeper)
+        - [start do zookeeper](#start-do-zookeeper)
+      - [Criar um topico pela linha de comando](#criar-um-topico-pela-linha-de-comando)
+      - [list de topicos](#list-de-topicos)
+      - [criar um produtor pela linha de comando](#criar-um-produtor-pela-linha-de-comando)
+      - [criar um consumer pela linha de comando (mensagens novas)](#criar-um-consumer-pela-linha-de-comando-mensagens-novas)
+      - [criar um consumer pela linha de comando (todas as mensagens)](#criar-um-consumer-pela-linha-de-comando-todas-as-mensagens)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -368,80 +378,199 @@ Então esse é o TGZ que eu vou baixar.
 
 Baixando o TGZ, você pode descompactar ele, dar dois cliques, use o terminal que você preferir, eu vou pelo terminal, assim eu mostro um problema super comum que a gente tem quando roda o Kafka.
 
+#### Erro comum na instalação do kafka
 Então, eu estou dentro do diretório anterior, vou entrar no diretório apps(espaço)descompactadas, de proposito, tar zxf. 
 
 No diretório meu de download, eu tenho um kafka, descompactei entro no diretório do Kafka, estou dentro do diretório do Kafka.
 
 Aqui dentro, você vai ver que a gente tem vários diretórios, o de scripts e o de configurações. 
 
-Então, eu quero rodar, o diretório dentro do diretório de scripts, kafka, server, start, levando o servidor, com a configuração padrão de servidor.
+Então, eu quero rodar, dentro do diretório bin, kafka-server-start.sh, levando o servidor, com a configuração padrão de servidor.
+
+```
+bin/kafka-server-start config/server.properties
+```
 
 E aí, eu tento rodar e ele dá um monte de erro, o erro, parece que o projeto não está construído, mas não é isso, lembrem, a gente baixou a versão, a versão que eu baixei é a versão binária, com o projeto já construído, já está binário, já da para executar, não foi o código fonte que eu baixei, não baixei o código fonte, eu baixei a binária.
 
-Então, qual que é o problema? O problema está aqui antes, o diretório path que eu estou usando, no meu path, apps descompactadas tem um espaço e aí, nesse espaço, o kafka fica doido. Então, o que que a gente vai ter que fazer? A gente vai ter que renomear esse diretório aqui, para simplesmente apps.
+Então, qual que é o problema? 
 
-Então, eu vou voltar aqui para trás, só para eu não me perder, estou no diretório anterior, eu vou renomear isso aqui só para apps, vou entrar nessas apps, agora sim, dentro do kafka e agora sim eu posso rodar. Então, eu vou tentar bin/kafka-server-start, configurações, server properties.
+O problema está aqui antes, o diretório path que eu estou usando, no meu path, 'apps descompactadas' tem um espaço e aí, nesse espaço, o kafka fica doido. 
 
-Tento executar, ele roda o meu Java, então o meu Java já está instalado, eu estou com o Java 13, instala a versão mais recente que você tem, se você não tem Java instalado ainda, só que ele começa a dar vários erros. Ele fala: “Erro, erro, erro, não consegui, estou desligando” e ele desliga, por quê?
+Então, o que que a gente vai ter que fazer? 
 
+A gente vai ter que renomear esse diretório aqui, para simplesmente apps.
+
+Então, eu vou voltar aqui para trás, só para eu não me perder, estou no diretório anterior, eu vou renomear isso aqui só para apps, vou entrar nessas apps, agora sim, dentro do kafka e agora sim eu posso rodar. 
+
+#### bin/kafka-server-start config/server.properties
+Então, eu vou tentar bin/kafka-server-start config/server.properties
+
+```
+bin/kafka-server-start config/server.properties
+```
+
+Tento executar, ele roda o meu Java, eu estou com o Java 13, só que ele começa a dar vários erros. 
+
+Ele fala: “Erro, erro, erro, não consegui, estou desligando” e ele desliga, por quê?
+
+#### local de persistencia do kakfa
 Porque o Kafka, ele é o processador dessas mensagens, de jogar de um lado para cá, para o outro lado, de cá, para lá, não sei o quê, não sei o quê, que lida com todos os strings e etc., processador nesse sentido de conectar tudo, mas onde que armazena essas informações?
 
-Algumas informações básicas, o Kafka tem que armazenar em algum lugar e o lugar onde o Kafka armazena, isso por padrão, se chama zookeeper. Então, a gente teria que baixar também o zookeeper, zookeeper download. Então, a gente teria que baixar o zookeeper.
+##### zookeeper
+Algumas informações básicas, o Kafka tem que armazenar em algum lugar e o lugar onde o Kafka armazena, isso por padrão, se chama zookeeper. 
 
-Claro, o Kafka já vem com o zookeeper instalado, caso você não queria instalar separadamente, porque pode ter empresas que já tenham o zookeeper rodando por outros motivos. No nosso caso, a gente não tem, então o que que eu vou fazer?
+Então, a gente teria que baixar também o zookeeper, zookeeper download. 
 
-Antes de rodar o Kafka, eu vou limpar a minha tela e vou executar bin/zoopeeper, adivinha? Server-start e adivinha, preciso de configuração, config/zookeeper.properties. Então, eu já tenho as propriedades padrão aqui, já configuradas, vou utilizar elas.
+Claro, o Kafka já vem com o zookeeper instalado, caso você não queria instalar separadamente, porque pode ter empresas que já tenham o zookeeper rodando por outros motivos. 
 
-Então, ele vai levantar para mim, olha, aqui embaixo, vou dar uns “Enter” para ficar mais rápidos, mais fácil de ler, conectei com o 0000, aqui, qualquer lugar para conectar, etc., na porta 2181. Então, o zookeeper está rodando, agora, sim, vou abrir uma outra aba, mesmo diretório, agora, sim, bin/kafka-server-start, e lembra as configurações?
+No nosso caso, a gente não tem, então o que que eu vou fazer?
 
-Config, server.properties, vou tentar e aí, ele vai tentar conectar com o Zookeeper, e ele fala lá: “Conectei com o zookeeper”, manda um monte de propriedades padrão que ele está utilizando, etc., e no final, você vai ver que olha: “Started”, no final vai estar “Started”.
+##### start do zookeeper
+Antes de rodar o Kafka, vou executar bin/zoopeeper, adivinha? 
+Server-start e adivinha, preciso de configuração, config/zookeeper.properties. 
 
-Então, ele está rodando o Kafka em algum canto para a gente, o Kafka está rodando lá. A gente pode até procurar aqui ó, porta, 9092, a porta padrão 9092, que vem no server properties, está escrito no server properties.
+Então, eu já tenho as propriedades padrão aqui, já configuradas, vou utilizar elas.
 
-Então, a gente tem a propriedade que está na porta 9092, rodando o Kafka, por trás, usou keeper para algumas configurações, não todos os dados, algumas configurações. Vamos então agora, enviar uma mensagem de um lado para o outro. Eu quero ver o Kafka rodando, vamos testar?
+```
+bin/zookeeper-server-start.sh config/zookeeper.properties
+```
 
-Então, a gente vai testar um terminal de novo no mesmo diretório, Kafka, lembra, a gente vai usar várias coisas a partir daqui e o que eu vou querer fazer é criar um tópico, para a gente poder trocar mensagens. Então, bin/kafka tópicos, e aí, eu posso ver tudo o que o kafka topics permite que eu faça, tem várias coisas.
+Então, ele vai levantar para mim, olha, aqui embaixo, conectei com o 0.0.0.0, aqui, qualquer lugar para conectar, etc., na porta 2181. 
 
-O que a gente vai fazer é um create, criar um tópico, só que a gente precisa falar aonde que está o Kafka rodando, lembra? O Kafka está rodando, bootstrap-server em localhost, porta 9092. Então, conecta com o Kafka localhost 9092. E aí, eu falo alguma propriedades do meu tópico.
+Então, o zookeeper está rodando, agora, sim, bin/kafka-server-start config/server.properties, vou tentar e aí, ele vai tentar conectar com o Zookeeper, e ele fala lá: “Conectei com o zookeeper”, manda um monte de propriedades padrão que ele está utilizando, etc., e no final, você vai ver que olha: “Started”, no final vai estar “Started”.
 
-Eu vou falar, colocar duas propriedades padrão aqui simples, que a gente vai trabalhar com elas durante todos os cursos, então não se preocupe, a gente vai entrar afundo nelas e brincar com elas, ver o que acontece com elas aos poucos. Por enquanto, eu só queria deixar fixo, replication factor como 1 e o partitions como 1.
+Então, ele está rodando o Kafka em algum canto para a gente. 
 
-E eu vou falar o nome do tópico, o nome do tópico, você pode botar o padrão que você quiser, imagine que eu tenho na minha loja um novo pedido que está entrando, então eu poderia colocar loja_novopedido. Aí, você fala: “Ah, Guilherme, não poderia ser loja, ponto, underline aqui?”.
+A gente pode até procurar aqui ó, porta, 9092, a porta padrão 9092, que vem no server properties, está escrito no server properties.
 
-Poderia, a sugestão do kafka topics é que a gente não use, não misture ponto com underline, por isso eu não vou misturar. Eu vou manter qual padrão? Eu vou manter aqui o underline como uma separação de meio que “subtópicos”, não são subtópicos, não existe esse conceito, é só uma separação para leitura.
+Então, a gente tem a propriedade que está na porta 9092, rodando o Kafka, por trás, usou keeper para algumas configurações, não todos os dados, algumas configurações. 
 
-Olha, loja teve um novo pedido, então a loja teve um novo pedido, só que você fica com a sensação, será que é o melhor padrão? Não existe muito um melhor, pior padrão. Existe que ponto e underline não é uma recomendação de uso ao mesmo tempo pelo próprio Kafka.
+Vamos então agora, enviar uma mensagem de um lado para o outro. Eu quero ver o Kafka rodando, vamos testar?
 
-Então, vou utilizar sempre o underline para separar as palavras aqui para mim, é isso que eu vou utilizar, estou feliz com esse padrão, tudo em maiúsculo, você poderia definir que é tudo em minúsculo, poderia definir o que você quisesse como padrão.
+#### Criar um topico pela linha de comando
+Então, a gente vai testar um terminal de novo no mesmo diretório, Kafka, lembra, a gente vai usar várias coisas a partir daqui e o que eu vou querer fazer é criar um tópico, para a gente poder trocar mensagens. 
 
-No meu caso, eu vou utilizar esse e a sua empresa vai utilizar um padrão próprio, não tem problema. Então, vamos mandar criar esse tópico e quando a gente manda criar, ele fala aqui: “De acordo com limitações nas métricas dos nomes, tópicos com período, ponto ou underscore podem colidir.
+Então, bin/kafka-tópicos.sh, e aí, eu posso ver tudo o que o kafka topics permite que eu faça, tem várias coisas.
 
-Então, se você tem underscore, pode colidir, então a melhor maneira é usar ou um ou outro, mas não ambos e a gente não está usando ambos, está usando só um. O problema então, seria se a gente usasse um ponto em alguns, underline em outros, poderia ter uma colisão.
+```
+bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic LOJA_NOVO_PEDIDO
+```
 
-Estou usando só underline, não tenho problema, você poderia usar outros caracteres, como o hífen e por aí, vai. Estou usando underline, padrão que você definir de acordo com o que você definir para a sua empresa. Quero ter certeza que esse tópico foi criado, kafka-topics, menos, menos, list, de novo, eu tenho que falar qual é o servidor, bootstrap-server localhost 9092.
+O que a gente vai fazer é um create, criar um tópico, só que a gente precisa falar aonde que está o Kafka rodando, lembra? 
 
-Então, esses comandinhos são super úteis no dia-a-dia a gente vai usar várias vezes. Então, ele está falando: “Existe, sim, um tópico chamado: loja novo pedido”. Queria mandar algumas mensagens para esse tópico, só para a gente ver isso acontecendo, envio de mensagens, porque a gente vê no kafka, ele está falando: “Eu criei a partição para esse tópico”.
+O Kafka está rodando, bootstrap-server em localhost, porta 9092. 
 
-E está lá, partição 0, só existe uma partição, começa com 0 e por aí, vai. Então, a gente vê aí que o tópico realmente está lá. O que eu quero fazer agora é falar para ele: “Olha, eu quero...”, vamos deixar essa aba aqui aberta, que é dos tópicos, que a gente vai trabalhar nos tópicos, vamos abrir uma outra aba.
+Então, conecta com o Kafka localhost 9092. 
 
+E aí, eu falo alguma propriedades do meu tópico.
+
+Eu vou falar, colocar duas propriedades padrão aqui simples, que a gente vai trabalhar com elas durante todos os cursos, então não se preocupe, a gente vai entrar afundo nelas e brincar com elas, ver o que acontece com elas aos poucos. 
+
+Por enquanto, eu só queria deixar fixo, replication factor como 1 e o partitions como 1.
+
+E eu vou falar o nome do tópico, o nome do tópico, você pode botar o padrão que você quiser, imagine que eu tenho na minha loja um novo pedido que está entrando, então eu poderia colocar loja_novopedido. 
+
+Aí, você fala: “Ah, Guilherme, não poderia ser loja, ponto, underline aqui?”.
+
+Poderia, a sugestão do kafka topics é que a gente **não use, não misture ponto com underline**, por isso eu não vou misturar. 
+
+Eu vou manter aqui o underline como uma separação de meio que “subtópicos”, não são subtópicos, não existe esse conceito, é só uma separação para leitura.
+
+Olha, loja teve um novo pedido, então a loja teve um novo pedido, só que você fica com a sensação, será que é o melhor padrão? 
+
+Não existe muito melhor, pior padrão. 
+
+Existe que ponto e underline não é uma recomendação de uso ao mesmo tempo pelo próprio Kafka.
+
+Então, vou utilizar sempre o underline para separar as palavras aqui para mim, tudo em maiúsculo, você poderia definir que é tudo em minúsculo, poderia definir o que você quisesse como padrão.
+
+No meu caso, eu vou utilizar esse e a sua empresa vai utilizar um padrão próprio, não tem problema. 
+
+Então, vamos mandar criar esse tópico e quando a gente manda criar, ele fala aqui: "**De acordo com limitações nas métricas dos nomes, tópicos com período, ponto ou underscore podem colidir**".
+
+Então, se você tem underscore, pode colidir, a melhor maneira é usar ou um ou outro, mas não ambos e a gente não está usando ambos, está usando só um. 
+
+O problema então, seria se a gente usasse um ponto em alguns, underline em outros, poderia ter uma colisão.
+
+Estou usando só underline, não tenho problema, você poderia usar outros caracteres, como o hífen e por aí, vai. 
+
+Estou usando underline, padrão que você definir de acordo com o que você definir para a sua empresa. 
+
+#### list de topicos 
+Quero ter certeza que esse tópico foi criado, kafka-topics --list, de novo, eu tenho que falar qual é o servidor, bootstrap-server localhost 9092.
+
+```
+bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+```
+
+Então, esses comandinhos são super úteis no dia-a-dia a gente vai usar várias vezes. 
+
+Então, ele está falando: “Existe, sim, um tópico chamado: loja novo pedido”. 
+
+Queria mandar algumas mensagens para esse tópico, só para a gente ver isso acontecendo, envio de mensagens, porque a gente vê no kafka, ele está falando: “Eu criei a partição para esse tópico”.
+
+E está lá, partição 0, só existe uma partição, começa com 0 e por aí, vai. 
+
+Então, a gente vê aí que o tópico realmente está lá. 
+
+#### criar um produtor pela linha de comando
 Eu quero rodar um produtor de mensagens, que produz mensagens, de novo, no terminal, porque a gente só quer confirmar a instalação, tudo ok, kafka, eu quero criar no console um produtor e eu vou falar para ele assim: “Olha, os brokers, os kafkas estão rodando aonde mesmo?”.
 
-Onde que eles estão rodando? Broker list, no localhost 9092 e eu falo o tópico, qual que é o tópico mesmo? Loja novo pedido. Quando eu rodo na linha de comando o console producer, cada linhazinha que eu digitar aqui é uma mensagem.
+```
+bin/kafka-console-producer.sh --broker-list localhost:9092 --topic LOJA_NOVO_PEDIDO
+```
 
-Então, eu poderia falar: “Olha, o pedido 0 com vírgula”, sei lá o valor foi R$ 560,00 e depois o pedido 1, o valor foi R$ 330,00, depois o pedido 2, que foi esse número aqui grandão. Então, estou mandando várias mensagens para esse tópico, a gente pode dar o list no nosso topics, para ver os tópicos que existem e o tópico loja novo pedido ainda existe.
+Onde que eles estão rodando? 
 
-O que eu quero fazer agora é consumir. Então, eu vou abrir uma nova aba, bin/kafka-console-consumir, bootstrap-server, então eu vou conectar bootstrap-server no localhost 9092 e o tópico loja novo pedido. Agora, vem uma pergunta, eu devo consumir a partir de quando?
+Broker list, no localhost 9092 e eu falo o tópico, qual que é o tópico mesmo? 
 
-Desde lá de trás? Desde a primeira mensagem que está armazenada? Ou a partir das mensagem que chegam agora? Se eu executo do jeito que está, do jeito que está. Não veio mensagem nenhuma aqui, agora, se eu... Vou abrir uma aba nova, se eu executar bin/kafka-console-consumer, bootstrap-server, lembra que eu estou deixando várias abas abertas?
+Loja novo pedido. 
+
+Quando eu rodo na linha de comando o console producer, cada linhazinha que eu digitar aqui é uma mensagem.
+
+
+Então, eu poderia falar: “Olha, o pedido 0 com vírgula”, o valor foi R$ 560,00 e depois o pedido 1, o valor foi R$ 330,00, depois o pedido 2, que foi esse número aqui grandão. 
+
+Então, estou mandando várias mensagens para esse tópico, a gente pode dar o list no nosso topics, para ver os tópicos que existem e o tópico loja novo pedido ainda existe.
+
+#### criar um consumer pela linha de comando (mensagens novas)
+O que eu quero fazer agora é consumir. 
+
+Então, eu vou abrir uma nova aba, bin/kafka-console-consumer, bootstrap-server, então eu vou conectar bootstrap-server no localhost 9092 e o tópico loja novo pedido. 
+
+```
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic LOJA_NOVO_PEDIDO
+```
+
+Agora, vem uma pergunta, eu devo consumir a partir de quando?
+
+Desde lá de trás? 
+
+Desde a primeira mensagem que está armazenada? 
+
+Ou a partir das mensagem que chegam agora? 
+
+#### criar um consumer pela linha de comando (todas as mensagens)
+Se eu executo do jeito que está, Não veio mensagem nenhuma aqui, agora, se eu... 
 
 Para que a gente possa usar o para cima e não ter que ficar digitando isso aqui toda a vez, 9092, o topic loja novo pedido, mas eu poderia falar: “Olha, começa do começo”, falar um beginning, então ele vai começar da primeira mensagem que está armazenada ainda no Kafka.
 
-Então, ele vai olhar lá para trás e vai falar: “Olha, de qual a mensagem que está armazenada?”, está armazenada essa mensagem, essa mensagem e essa mensagem. Então, aqui ele ainda não recebeu nada, porque não teve novas mensagens e aqui sim, aqui a gente teve três mensagens do passado, que estavam armazenadas esperando alguém consumir.
+```
+bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic LOJA_NOVO_PEDIDO --from-beginning
+```
 
-Então, vamos ver agora, vou mandar uma mensagem um pedido 3 com esse outro valor, mandei. Então, olha, aqui eu recebi o pedido 3 e aqui eu recebi o pedido 3, recebi nos dois consumidores.
+Então, ele vai olhar lá para trás e vai falar: “Olha, de qual a mensagem que está armazenada?”, está armazenada essa mensagem, essa mensagem e essa mensagem. 
 
-É claro, a gente vai ver se a gente quer receber em todos os consumidores, em só um consumidor, como receber, quantas partições, quantas repetições, ter certeza que vai receber, certeza que começou desde o começado, várias coisas que a gente vai discutir durante o curso.
+Então, aqui ele ainda não recebeu nada, porque não teve novas mensagens e aqui sim, aqui a gente teve três mensagens do passado, que estavam armazenadas esperando alguém consumir.
+
+Então, vamos ver agora, vou mandar uma mensagem um pedido 3 com esse outro valor. 
+
+Então, olha, aqui eu recebi o pedido 3 e aqui eu recebi o pedido 3, recebi nos dois consumidores.
+
+É claro, a gente vai ver se a gente quer receber em todos os consumidores, em só um consumidor, como receber, quantas partições, quantas repetições, ter certeza que vai receber, certeza que começou desde o começo, várias coisas que a gente vai discutir durante o curso.
 
 Mas isso daqui é legal para a gente ver como instalar o kafka, como olhar os tópicos que estão lá, a gente vai explorar o topics mais vezes... como gerar um consumidor, um produtor de strings, que manda strings simples e um consumidor ou mais de um consumidor, que consome essas strings, só para gente ver funcionando.
 
 Claro, a partir de agora, a gente quer executar isso com programação e ver todas as vantagens e desvantagens que a gente vai ver com o kafka dentro dos nossos programas. São os nossos próximos passos.
+

@@ -21,3 +21,25 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+
+kafka_2.13-3.2.1/bin/*
+kafka_2.13-3.2.1/libs/*
+kafka_2.13-3.2.1/licenses/*
+kafka_2.13-3.2.1/site-docs/*
+kafka_2.13-3.2.1/LICENSE
+kafka_2.13-3.2.1/NOTICE
+kafka_2.13-3.2.1/config/trogdor.conf
+kafka_2.13-3.2.1/config/connect-console-sink.properties
+kafka_2.13-3.2.1/config/connect-distributed.properties
+kafka_2.13-3.2.1/config/connect-file-sink.properties
+kafka_2.13-3.2.1/config/connect-console-source.properties
+kafka_2.13-3.2.1/config/connect-file-source.properties
+kafka_2.13-3.2.1/config/connect-log4j.properties
+kafka_2.13-3.2.1/config/connect-mirror-maker.properties
+kafka_2.13-3.2.1/config/connect-standalone.properties
+kafka_2.13-3.2.1/config/consumer.properties
+kafka_2.13-3.2.1/config/kraft/*
+kafka_2.13-3.2.1/config/log4j.properties
+kafka_2.13-3.2.1/config/producer.properties
+kafka_2.13-3.2.1/config/tools-log4j.properties
+
