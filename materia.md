@@ -20,6 +20,13 @@ terminado em
       - [criar um produtor pela linha de comando](#criar-um-produtor-pela-linha-de-comando)
       - [criar um consumer pela linha de comando (mensagens novas)](#criar-um-consumer-pela-linha-de-comando-mensagens-novas)
       - [criar um consumer pela linha de comando (todas as mensagens)](#criar-um-consumer-pela-linha-de-comando-todas-as-mensagens)
+    - [Criando produtores em Java](#criando-produtores-em-java)
+      - [Dependencias maven kafka](#dependencias-maven-kafka)
+      - [Kafka producer](#kafka-producer)
+      - [Metodo Send()](#metodo-send)
+      - [Metodo Send().get()](#metodo-sendget)
+      - [callback do send()](#callback-do-send)
+      - [offset](#offset)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -573,4 +580,332 @@ Então, olha, aqui eu recebi o pedido 3 e aqui eu recebi o pedido 3, recebi nos 
 Mas isso daqui é legal para a gente ver como instalar o kafka, como olhar os tópicos que estão lá, a gente vai explorar o topics mais vezes... como gerar um consumidor, um produtor de strings, que manda strings simples e um consumidor ou mais de um consumidor, que consome essas strings, só para gente ver funcionando.
 
 Claro, a partir de agora, a gente quer executar isso com programação e ver todas as vantagens e desvantagens que a gente vai ver com o kafka dentro dos nossos programas. São os nossos próximos passos.
+
+### Criando produtores em Java
+Agora que a gente está pronto para criar o nosso projeto, vamos criar ele. 
+
+Lembrando, aqui nesse curso, a gente vai utilizar o projeto em Maven, que é feito em Java.
+
+Eu estou utilizando a versão 13 do Java, você pode utilizar versões mais recentes, não tem problema. 
+
+Então, dentro de Maven, eu vou criar um novo projeto, ele vai perguntar para mim qual é o grupo e o nome do projeto, então o meu grupo é br.com.alura e eu vou criar uma loja, um e-commerce, então “ecommerce”.
+
+Então, next, vai perguntar o diretório para mim, esse é o diretório que eu quero criar, vou dar finish e ele cria para mim esse projeto. 
+
+A gente está utilizando aqui Java, uma das linguagens mais utilizadas no mercado para coisas do gênero, mas você pode utilizar em qualquer linguagem, os problemas serão os mesmos e os desafios iguais e as soluções parecidas, não serão desafios de linguagem e sim desafios de mensageria distribuída, etc.
+
+#### Dependencias maven kafka
+Então, eu tenho aqui o meu projeto e eu posso colocar a dependência do Kafka aqui.
+
+Então, a dependência que eu quero, se me chama Kafka-client, você pode procurar Kafka-Maven, Maven-Kafka-client ou a biblioteca que você usa em outra linguagem, claro, a ferramenta que você use gerenciamento. A versão mais recente aqui é o 231, vou clicar.
+
+```
+<!-- https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients -->
+<dependency>
+    <groupId>org.apache.kafka</groupId>
+    <artifactId>kafka-clients</artifactId>
+    <version>3.2.1</version>
+</dependency>
+
+```
+
+Eu quero baixar não só o Kafka-clients, mas eu quero baixar também o SLF4J, que é o sistema de log, simples, que é utilizado, pode ser uma implementação utilizada pelo Kafka e serve para a gente ver mensagens de log.
+
+Não vou usar a versão alpha, não vou usar a versão beta, vou utilizar essa última versão, a versão mais recente, estável, para eu não ter problema, a gente não vai ficar configurando na unha, vai deixar o padrão e vou tirar o scope de teste. Não, não é só para teste, eu quero para valer.
+
+```
+<!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-simple</artifactId>
+    <version>2.0.0</version>
+    <scope>test</scope>
+</dependency>
+
+```
+
+Então, a gente está tudo configurado, sincronizado, já baixou. 
+
+Vamos no src, a gente tem aqui o Java. 
+
+Vamos criar uma classe, que agora sim é o nosso projeto para valer. 
+
+Esse nosso projeto, ele tem que criar, por exemplo, um cliente entrou no sistema e criou um pedido de compra.
+
+Então, nesse momento, eu estou criando um novo pedido e um novo pedido de compra é um NewOrder. 
+
+Então, eu estou fazendo o quê? 
+
+Vai ser um programinha, eu vou chamar de Main, para deixar claro para a gente que isso daqui é um Main simples, que a gente executa, não é um serviço, não é nada, é só um Main que a gente executa de vez em quando, que vai criar um novo pedido de compra e o order.
+
+Eu quero criar uma mensagem, enviar uma mensagem no Kafka, eu quero produzir uma mensagem, KafkaProducer, quando a gente tem um KafkaProducer, repara que ele precisa de dois parâmetros aqui de tipagem. 
+
+O tipo da chave e o tipo da mensagem.
+
+Por enquanto, vamos utilizar a strings para tudo, a medida que a gente entrar na chave, entrar na mensagem, a gente discute os tipos, então por enquanto só strings, tipos strings. 
+
+E eu vou criar esse meu produtor, esse é o meu producer.
+
+#### Kafka producer
+Só que o new KafkaProducer recebe, se a gente passar o mouse, uma propriedade, o KafkaProducer precisa receber coisas, como properties.
+
+Então, vamos criar propriedades aqui. 
+
+Poderia ler de um arquivo. 
+
+Quero criar na mão programaticamente com você, para a gente vê isso. 
+
+Então, vamos criar aqui na mão um método estático, que devolve o quê?
+
+Para mim um properties, eu estou feliz. 
+
+Então, set propriedade, primeiro eu tenho que falar onde a gente vai se conectar. 
+
+Lembra, quando a gente roda o produtor ou qualquer coisa do gênero, a gente tem que falar onde que está rodando os meus kafkas.
+
+Então, os meus Kafkas, estão rodando na chave ProducerConfig, para a gente não errar a digitação, ProducerConfig, configuração de produtor, bootstrap server, lembra? E aqui dentro eu posso colocar os servidores, por exemplo, 172.0.0.1, que é o meu localhost, 9092, na porta 9092.
+
+
+Que outras propriedades vão ser importantes? 
+
+Eu vou querer uma segunda propriedade, que eu vou falar assim para ele: “Tanto a chave, quando o valor, os dois vão transformar a mensagem e a chave, baseado em strings”. Então, além do tipo, eu tenho que passar transformadores de strings para bytes, serializadores de strings para bytes.
+
+Então, vai ter que falar: “O ProducerConfig, o Key serializer, é um serializador de quê? 
+
+De strings, é um StringSerializer. 
+
+Só que a gente tem que passar o nome dela, então getName, que eu estou passando o nome dessa classe. 
+
+E a mesma coisa, igualzinho para o value, que é a mensagem, serializer class config, também vai estar utilizando o StringSerializer. 
+
+Então, ambos vão utilizar o StringSerializer, quer dizer, vão serializar strings em bytes, o que mais?
+
+Então, eu tenho o meu producer, agora que tem um producer, eu posso enviar alguma coisa, a maneira mais simples: producer.send. 
+
+Então, eu quero enviar, vou enviar uma mensagem. 
+
+A mensagem que eu vou enviar é um record, é um registro, por que um registro? 
+
+Porque vai ficar registrado.
+
+Essa mensagem vai ficar registrada no Kafka, por quanto tempo? 
+
+Depende da configuração do seu server properties, “Ah, será que o espaço em disco pode acabar?” 
+
+Pode, se deixar muito tempo, então também tem um server properties, qual o espaço máximo que vai armazenar as mensagens.
+
+Então ou armazenar por espaço máximo ou por tempo máximo, configurações do seu server properties, você pode querer por só um dia, por só 5 minutos, por muitos dias, sem problemas, você configura isso. 
+
+Então, no seu server properties, você pode configurar coisas do gênero.
+
+https://docs.confluent.io/platform/current/installation/configuration/producer-configs.html
+
+```
+
+```
+
+Então, o meu record, que é o meu registro, ele é o quê? 
+
+Ele é um registro, um new Produtor Record, ele é um registro do meu record.
+
+Lembrando, o ProducerRecord, também vai ter a chave e o valor, só que agora, para pra pensar, quando a gente criou um produtor, a gente falou o tópico... desculpa, a gente falou o IP, mas a gente falou o tópico também. 
+
+Então aqui, o primeiro parâmetro é o tópico, qual que é o tópico que a gente está usando mesmo?
+
+LOJA_NOVO_PEDIDO. 
+
+Só um cuidado, a gente vai estar utilizando em inglês, então não vai ser mais loja novo pedido, vamos seguir o padrão do nosso projeto, no nosso projeto é “ECOMMERCE_NEW_ORDER”, a gente tem um novo pedido, um novo pedido de compra.
+
+Então, esse daqui é o tópico que eu vou enviar a mensagem, o que mais? 
+
+é só a chave e o valor. 
+
+Por enquanto, eu vou mandar tanto para a chave, quando para o valor, a mesma coisa.
+
+Quem é o value? 
+
+A mensagem que eu quero mandar, “Ah, a mensagem que eu vou mandar, vai ser, por exemplo, o ID do meu pedido, o ID do meu usuário e o valor da compra, por exemplo”. 
+
+Então, são três valores que eu estou mandando e eu estou usando isso tanto como chave, quanto como valor, tanto chave, quanto valor, estou usando a mesma coisa.
+
+É claro, a gente vai ver como a chave é importante, etc., a medida do possível, mas por enquanto a gente não está preocupado.
+
+Então, new ProducerRecord, eu tenho o record e eu envio esse record, envio o record e vejo o que acontece. 
+
+Agora, eu tenho isso daqui compilando, o que que eu posso fazer? 
+
+Esse “ECOMMERCE_NEW_ORDER” é o tópico que eu vou postar uma mensagem, então vamos testar? 
+
+Então, para testar, clico com o da direita, Run.
+
+Então, eu vou tentar rodar a primeira vez, ele deveria conectar aqui no nosso Kafka e tentar mandar a mensagem. 
+
+Opa, alguma coisa aconteceu, alguma coisa aconteceu aqui, e-commerce new order, está falando e-commerce new order 0, está tentando mandar alguma coisa.
+
+E a gente vê aqui o log, tem várias coisas, o log que começou e depois ele fala lá finalzinho, lá no finalzinho ele fala: “Tentei enviar e não encontrei nenhum líder para executar isso, alguma coisa aconteceu de errado”, ele tentou, mas ele não conseguiu no 127.0.0.1:9092, vamos dar uma olhada nos nossos tópicos.
+
+Então, a gente vai olhar os tópicos. 
+
+Opa, tem mais um tópico, a gente pode agora fazer um --describe, me descreva todos esses tópicos, por favor. 
+
+```
+
+```
+
+Então, ele vai descrever...
+
+Vamos descrever agora os tópicos e a gente tem aqui vários tópicos par a gente, mas se a gente olhar lá em cima, a gente vai ver o e-commerce new order e o loja novo pedido, a gente tem os dois tópicos aqui para a gente. 
+
+Então, o primeiro tópico está aqui, o segundo tópico está aqui.
+
+Então, repara que aqui no describe, a gente tem o e-commerce new order e o loja novo pedido, a gente tem os dois aqui, mas por que que ele deu um erro? 
+
+Por que que ele falou que eu não encontrei um líder? 
+
+Que um líder não estava disponível? 
+
+Porque calma lá, a gente acabou de criar esse tópico, a gente acabou de criar.
+
+Então, eu vou tentar rodar de novo. 
+
+Deixa eu rodar de novo, Run, vou tentar rodar de novo e agora, será que foi? 
+
+Você vem tudo para a direita e não tem log nenhum dizendo se foi ou não foi, será que foi? 
+
+Será que não foi?
+
+Vamos dar uma olhada, vou rodar o describe de novo e quando a gente rodar o describe, dá uma olhadinha aqui no resultado, lá em cima, e-commerce new order tem um partição, um líder e uma re. 
+
+Então, calma lá, a gente não está conseguindo saber se a mensagem foi ou não foi, por que isso?
+
+Porque dá uma olhadinha aqui no método send. 
+
+#### Metodo Send() 
+O método send devolve um Future, um Future é alguma coisa que vai executar daqui a pouco, então quer dizer, o send não é blocante, ele não segura, ele não é síncrono, ele é assíncrono.
+
+#### Metodo Send().get()
+Então, se eu quiser esperar ele terminar, eu vou chamar um get, que daí o get você espera... aqui você espera o Future terminar, aqui a gente está esperando e aí, pode dar uma exception, porque quanto você está esperando, alguém pode interromper ou enquanto você está esperando, pode dar um erro na execução.
+
+Então, dá algumas exceptions possíveis. 
+
+Vamos tentar rodar de novo, vou tentar rodar agora uma terceira vê e a gente vê que na terceira vez foi... Não deu ainda uma mensagem de sucesso ou de falha, por que não? 
+
+Porque a gente não colocou nenhuma mensagem de sucesso ou falha.
+
+O que a gente gostaria é: “A medida que eu envio, eu gostaria de ser notificado, se deu sucesso, se deu falha, o que que aconteceu”, repara, o get, até vai devolver alguma coisa para a gente, mas o que eu queria saber exatamente era, quando em paralelo acontecer alguma coisa, eu gostaria de ser notificado.
+
+#### callback do send()
+Então, eu quero passar um callback para o Kafka, para o Kafka que está enviando, para o produtor de mensagem. 
+
+Então, o send tem uma variação que recebe um callback.
+
+Então, basta a gente implementar essa interface callback, que tem um método, onCompletion, que recebe os metadados de sucesso ou a exception de falha, então a gente vai passar um único callback aqui. 
+
+O callback vai receber os dados de sucesso ou a exception de falha, um dos dois.
+
+E o que que a gente vai fazer? 
+
+Vamos mostrar o que que aconteceu, por exemplo, se a exception for diferente de nulo, é porque deu erro, então vamos imprimir ela e vamos parar por aqui, se a exception é nula, então é porque deu sucesso.
+
+Então, sout, vamos imprimir aqui no tópico data.topic, a gente colocou essa mensagem, ele colocou, por exemplo, na partição tal, no offset tal, em que posição que ele colocou e no timestamp, em que momento, no timestamp tal.
+
+Então, aqui a gente tem o tópico, a gente tem a partição, eu fiz de uma maneira super simples a interpolação aqui, no offset tal e por fim, no timestamp tal, então isso daqui é o que foi enviado, então esse daqui é um sucesso, “sucesso enviando” nesse tópico.
+
+Então aqui, eu estou colocando uma observer, para saber: “Quando em paralelo terminar, me avisa”, vou executar de novo, quarta vez que eu estou executando, recebo aqui toda a informação de log e opa, sucesso enviando para esse tópico, na partição 0, no offset 1, com esse timestamp.
+
+Então, aqueles dois primeiros, a gente nem esperou terminar, os dois primeiros a gente nem esperou. 
+
+Na terceira mensagem que eu mandei, eu esperei terminar, na quarta mensagem que eu mandei, eu esperei terminar.
+
+#### offset
+Por isso que o meu offset é 1, porque eu tive duas mensagens, a mensagem 0 e a mensagem 1, que foram a terceira e quarta, que eu esperei realmente serem enviadas a mensagem. Então, eu estou no offset 1 agora. 
+
+Então, enviei algumas mensagens, sim, está funcionando.
+
+Se eu rodar de novo, eu espero que esse offset cresça 1, por quê? Porque eu estou mandando mais uma mensagem, offset 2. 
+
+Vamos agora no terminal, lembra? 
+
+A gente tem aqui alguns consumers, a gente tinha aquele produtor simples de mensagem num tópico que não vamos usar mais, não estou usando ele.
+
+E aí, a gente tinha dois consumidores, um consumidor, que estava consumindo loja novo pedido, que a agora vai consumir, qual que é o tópico qu e a gente usa?
+
+ECOMMERCE_NEW_ORDER, from beginning, porque senão não tem graça, vamos dar uma olhada, vai consumir. 
+
+Olha o que consumiu, três vezes.
+
+Lembra? 
+
+A terceira, a quarta e a quinta mensagem que eu mandei agora, o 0, 1 e o 2. 
+
+Então, ele consumiu o 0, consumiu o 1, consumiu o 2. 
+
+Vou parar aquela outra que a gente não vai mais usar também, então a gente só está usando esse consumidor agora.
+
+Então, quer dizer, produzir mensagens se resume a isso, resume o quê? Criar um produtor, criar mensagens, enviar e colocar algum listener, então a gente fica escutando, quando a mensagem foi sucesso, eu sei que ela realmente foi, enquanto não for sucesso, eu não sei se ela realmente foi.
+
+Então esse é o meu enviador de novo pedido. 
+
+Tive um novo pedido, enviei a mensagem, a questão agora é, quem está escutando essa mensagem? 
+
+Quem são os consumidores que estão escutando essa mensagem? 
+
+Pom.xml
+```
+<dependencies>
+        <!-- https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>3.2.1</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-simple -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+
+
+    </dependencies>
+    ```
+
+    NewOrderMain.java
+    ```
+    public class NewOrderMain {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        var producer = new KafkaProducer<String, String>(properties()); //<String,String> é a chave,valor, sendo o valor o tipo da mensagem
+
+        var value = "12345, 6789, 1209";
+        var record = new ProducerRecord<String, String>("ECOMMERCE_NEW_ORDER", value, value); // parametros: topico, chave, mensagem
+
+        // producer.send(record); // envia a mensagem assincrona
+        // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
+        producer.send(record, (data, ex) -> {
+            if(ex != null) {
+                ex.printStackTrace();
+                return;
+            }
+            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset()+ "/ timestamp" + data.timestamp());
+        }).get(); // envia a mensagem sincrona com callback (lambda)
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092"); // ip e porta do kafka
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da chave
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da mensagem
+        return properties;
+    }
+}
+``` 
 

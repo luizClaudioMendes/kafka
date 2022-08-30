@@ -43,3 +43,6 @@ kafka_2.13-3.2.1/config/log4j.properties
 kafka_2.13-3.2.1/config/producer.properties
 kafka_2.13-3.2.1/config/tools-log4j.properties
 
+
+
+ecommerce/.idea/*
