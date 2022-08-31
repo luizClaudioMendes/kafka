@@ -7,6 +7,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 public class NewOrderMain {
@@ -14,25 +15,28 @@ public class NewOrderMain {
     public static void main(String[] args) throws ExecutionException, InterruptedException {
         var producer = new KafkaProducer<String, String>(properties()); //<String,String> é a chave,valor, sendo o valor o tipo da mensagem
 
-        var value = "12345, 6789, 1209";
-        var record = new ProducerRecord<String, String>("ECOMMERCE_NEW_ORDER", value, value); // parametros: topico, chave, mensagem
+        for(int i = 0; i < 100; i++) {
+            var key = UUID.randomUUID().toString();
+            var value = key + "- 12345, 6789, 1209";
+            var record = new ProducerRecord<String, String>("ECOMMERCE_NEW_ORDER", key, value); // parametros: topico, chave, mensagem
 
-        Callback callback = (data, ex) -> {
-            if (ex != null) {
-                ex.printStackTrace();
-                return;
-            }
-            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
-        };
+            Callback callback = (data, ex) -> {
+                if (ex != null) {
+                    ex.printStackTrace();
+                    return;
+                }
+                System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
+            };
 
-        var email = "thank you for your order! we are processing your order!";
-        var emailRecord = new ProducerRecord<>("ECOMMERCE_SEND_EMAIL", email, email);
+            var email = "thank you for your order! we are processing your order!";
+            var emailRecord = new ProducerRecord<>("ECOMMERCE_SEND_EMAIL", key, email);
 
-        // producer.send(record); // envia a mensagem assincrona
-        // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
-        producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
-        //segunda mensagem
-        producer.send(emailRecord, callback).get();// envia a mensagem sincrona com callback (lambda)
+            // producer.send(record); // envia a mensagem assincrona
+            // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
+            producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
+            //segunda mensagem
+            producer.send(emailRecord, callback).get();// envia a mensagem sincrona com callback (lambda)
+        }
     }
 
     private static Properties properties() {

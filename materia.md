@@ -35,6 +35,13 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos)
   - [Paralelisando tarefas em um serviço](#paralelisando-tarefas-em-um-serviço)
     - [Vários consumidores e produtores](#vários-consumidores-e-produtores)
+    - [Paralelizando e a importância das keys](#paralelizando-e-a-importância-das-keys)
+      - [Paralelismo no kafka (rebalance)](#paralelismo-no-kafka-rebalance)
+      - [Partiçoes (partitions)](#partiçoes-partitions)
+      - [alterar um topico ja existente pela linha de comando (kafka-topics.bat --alter)](#alterar-um-topico-ja-existente-pela-linha-de-comando-kafka-topicsbat---alter)
+      - [como o kafka faz o rebalanceamento das mensagens (direcionamento)](#como-o-kafka-faz-o-rebalanceamento-das-mensagens-direcionamento)
+      - [kafka-consumer-groups (kafka-consumer-groups.bat --all-groups)](#kafka-consumer-groups-kafka-consumer-groupsbat---all-groups)
+      - [Client ID no consumer](#client-id-no-consumer)
     - [](#)
 
 
@@ -1371,6 +1378,360 @@ public class FraudDetectorService {
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, FraudDetectorService.class.getSimpleName());// consumer group name
 
+        return properties;
+    }
+}
+```
+
+### Paralelizando e a importância das keys
+Até agora, a gente atacou o nosso problema com um consumidor e um produtor, isso é, quando tem uma pessoa produzindo, uma pessoa consome, mas até posso ter, por exemplo, o fraud service consumindo uma mensagem do tipo novo pedido, mas também ter o log service consumindo.
+
+E como que a gente fez para que os dois recebessem todas as mensagens?
+
+A gente fez com que eles tivessem grupos de consumo diferente. 
+
+Então, quando eu tenho um grupo de consumo, eu vou consumir todas as mensagens, se você tem outro grupo de consumo, você também vai consumir todas as mensagens, funciona.
+
+Só que o problema é o fraud service, a gente já viu, o processo de detectar fraude é um processo lerdo, é um algoritmo lento, etc. 
+
+Então, você não quer rodar ele só uma vez, você quer deixar vários deles rodando ao mesmo.
+
+Então, eu queria deixar rodando dois fraud detector service ao mesmo tempo. 
+
+para fazer isso, vou parar todo mundo, e Rodar o fraud detector service duas vezes.
+
+Então, agora ele tem o fraud detector service 1 e o fraud detector service rodando.
+
+Aí, você fala: “Legal, Guilherme, então roda agora o new o order main”, vamos ver que que acontece? 
+
+Vou rodar o new order main, mandei rodar, o que que o new order main faz? 
+
+Envia uma mensagem para o new order, quem recebeu? 
+
+O fraud detector service, será que o detector service 1, a segunda rodagem dele também recebeu?
+
+Não, ainda bem, por quê? 
+
+Porque **dentro de um grupo, quando chega uma mensagem com o tópico definido, ele vai chegar só em um desses caras, não vai chegar em todos**, por quê? Porque eu **não quero executar duas vezes o mesmo código para aquela mensagem**.
+
+Então, se mensagem chegar, ela vai ser enviada para todos os grupos que estão escutando aquele tópico, mas dentro de um grupo, se eu tenho vários programas escutando aquele tópico, no mesmo grupo, só vai para um deles, só foi para um, que foi esse daqui.
+
+Vou tentar de novo, vou rodar de novo, para quem será que vai agora? 
+
+Foi para o mesmo, para quem será que vai agora? 
+
+Essa foi a 9, agora foi a 10, foi para o mesmo, para quem será dado agora?
+
+Agora foi a 11, foi para o mesmo, “Guilherme, legal, você paralelizou, você vai ser capaz de executar duas detecções defraudes ao mesmo tempo, na mesma máquina, em máquinas diferentes, etc., maravilha, só que está caindo sempre no mesmo, por que que está caindo sempre no mesmo?
+
+#### Paralelismo no kafka (rebalance)
+A questão é, como que o Kafka paraleliza isso? 
+
+Como é que ele divide que dentro de um grupo, esse consumidor vai receber essas mensagens e esse, essas outras mensagens? 
+
+#### Partiçoes (partitions)
+Isso é feito através das partições.
+
+Então, se a gente der uma olhada na configuração do nosso servidor, então esse consumer aqui, que a gente tinha rodando, posso parar. 
+
+Se a gente der uma olhada no server.properties, a gente vai ver que lá, quando fala de partitions, número de partições, uma, isso quer dizer o quê?
+
+Quer dizer que para cada tópico por padrão, eu só tenho uma sequência de mensagens e toda a mensagem cai nessa sequência, nessa partição, como só tem uma parte e essa parte tem tudo, então está todo mundo lá, o que que acontece?
+
+Quando a gente levanta um consumidor, esse consumidor se responsabiliza por várias partes, como só tem uma parte, ele se responsabiliza pela única parte e foi isso o que aconteceu. 
+
+Esse cara aqui, ele é responsável pela única partição a partição 0.
+
+Se a gente olhar no log, você vai ver no comecinho, ele falando: Eu estou responsável pela partição 0”, calma aí, se ele está responsável por todas as mensagens dessa partição, esse outro cara, na hora que ele perguntar: “Tem uma partição aí para mim?”.
+
+Você vai olhar o que ele vai falar: “Não juntei, não estou em nenhuma partição, porque só tem uma partição”, se dois consumissem da mesma partição, os dois iam receber as mesmas mensagens e a gente não quer, a gente quer dividir entre os dois.
+
+Então, não devemos ter mais consumer no mesmo grupo, do que o número de partições, por quê? 
+
+Porque que um deles vai ficar parado, olhando para o teto sem fazer nada. 
+
+Então, o que que a gente tem que fazer? 
+
+A gente tem que reparticionar o nosso tópico, a gente tem que rebalancear tudo isso daí.
+
+Então, como é que a gente pode rebalancear? 
+
+Como é que a gente pode, primeiro, reparticionar, para a gente ter, por exemplo, duas partições? 
+
+A gente tem várias maneiras de fazer isso, uma é trocar aqui a configuração para padrão, para que em novos tópicos, eu vou querer ter três partições, em novos tópicos, isso é muito importante.
+
+Então, se eu salvar e sair, os tópicos existentes ECOMMERCE_NEW_ORDER, ele tem só uma partição, já foi criado, então não tem três partições.
+
+O que que eu quero fazer? 
+
+#### alterar um topico ja existente pela linha de comando (kafka-topics.bat --alter)
+Eu quero alterar o tópico, e para alterar o tópico, tem linha de comando para a gente fazer isso, bin/kafka-topics.sh, eu quero alterar, eu vou falar onde está o zookeeper, localhost:2181, eu vou falar o tópico, qual que é o tópico mesmo?
+
+É esse tópico aqui, ECOMMERCE_NEW_ORDER, esse é o meu tópico e o que que eu vou querer falar? 
+
+Eu vou falar: “Para esse tópico, eu queria três partições", por exemplo, podia ser quatro, podia ser 12, número de partições que fizessem sentido para a gente paralelizar.
+
+```
+bin/windows/kafka-topics.bat --bootstrap-server localhost:9092 --describe
+```
+
+Lembrando, o número máximo de paralelização vai ser o número de partição, então aqui eu vou colocar três partições, vamos ver o que acontece, ele está reparticionando, adicionou as partições com sucesso. 
+
+Vamos rodar aquele comando de describe de novo?
+
+```
+bin/windows/kafka-topics.bat --alter --bootstrap-server localhost:9092 --topic ECOMMERCE_NEW_ORDER --partitions 3
+```
+
+Vamos ver o que ele fala, ele fala: “Legal, para o ECOMMERCE_NEW_ORDER, eu tenho agora três partições, a partição 0, a partição 1 e a partição 2, então te, três partições agora, agora não tem mais só uma, tem três partições. 
+
+Se eu tenho três partições, o que que deveria acontecer?
+
+Cada um desses serviços aqui, cada um desses serviços deveria pegar partições distintas, eu vou dar um stop aqui e um stop no outro... dar um stop nesse e um stop nesse outro e vou executá-los novamente.
+
+Então, eu vou executar aqui nas configurações o fraud detector service 1, estou começando do 0, fraud detector service 1 e o fraud detector service. 
+
+Quando eu rodei o 1, ele já falou aqui para a gente: “Olha, eu peguei as partições 2,1 e 0”, ele pegou todas, por quê?
+
+Porque só tem ele consumindo, se só tem ele consumido nesse consumer group, ele tem que pegar todas as partições, para garantir que ele processe todas as mensagens. 
+
+Na hora que a gente rodar agora o segundo, o que que vai acontecer?
+
+Ele vai dividir, ele vai falar: “Olha, tudo bem, você tinha as três partições e você vai ficar com 0? 
+
+Não tem graça, então vamos distribuir melhor, vamos rebalancear isso daí. 
+
+Vamos ver o que ele decidiu aqui para a gente, ele falou: “Eu vou ser o responsável repartição 1 e 0”.
+
+Se ele ficou responsável pela 1 e 0, esse daqui ficou responsável pela partição 2. 
+
+Então, um deles ficou responsável por uma partição, o outro por duas, ele rebalanceou, na hora que você colocou um novo consumidor no consumer group, ele rebalanceou.
+
+Não é necessariamente naquele instante, na hora que a gente faz um poll novo, a gente está dando uma chance para rebalancear, etc., tem várias questões de quando o rebalanciamento é feito, a gente não precisa entrar nos detalhes, mas o que a gente quer ver é a paralelização e isso acontece nesse instante, depois a gente vai entrando em mais detalhes.
+
+Vamos tentar agora? 
+
+Eu chego lá no meu new order main e executo uma vez, mandou uma mensagem, quem recebeu? 
+
+Quem recebeu a mensagem?
+
+Quem recebeu a mensagem foi o fraud detector service, ele recebeu na partição 0. 
+
+Vou rodar outro, vamos ver para que partição que vai agora? 
+
+O Kafka vai tentar distribuir e escolher a partição.
+
+Vamos ver em quem caiu? 
+
+Opa, caiu aqui de novo, vamos tentar de novo? 
+
+em quem será que vai cair? 
+
+Caiu por enquanto na partição 0, caiu na partição 0 de novo, está caindo sempre na partição 0, por que que está caindo sempre na partição 0?
+
+#### como o kafka faz o rebalanceamento das mensagens (direcionamento)
+O kafka precisa de algum algoritmo para decidir em qual dessas partições ele vai enviar, como que ele faz isso? 
+
+Através de uma **chave**, e adivinha, a gente está mandando sempre a mesma chave, a chave é sempre ou o e-mail ou o próprio valor da mensagem, como a gente está mandando sempre a mesma chave, ele está caindo sempre na mesma partição.
+
+Então, a chave é quem decide em qual partição vai cair, não é direto, “Ah, eu quero que caia na partição 0”, “Eu quero que caia na partição 1”, não, é uma chave.
+
+A gente poderia falar aqui: “Olha, a chave que eu vou usar é o ID do usuário”, qual poderia ser o ID de um usuário? 
+
+Vou criar um ID usuário aleatório, por exemplo, um UUID, vou pegar aqui um UUID aleatório, transformar numa string.
+
+Então, toda a vez que a gente rodar, a gente vai ter um ID diferente, uma chave diferente, um ID diferente do usuário, então eu vou concatenar aqui, aqui mais isso daqui, esse daqui é o meu valor, é a minha mensagem e a gente vai usar isso como chave, tanto para o new order, quanto para o e-mail, para os dois a gente vai usar isso como chave.
+
+Então, agora, cada vez que a gente roda, a gente está usando uma chave nova, por quê? 
+
+Porque é o ID do usuário. 
+
+Eu espero que os IDs do usuários, são aleatórios, então vai ser bem distribuído o hash dessas chaves.
+
+Então, o que a gente vai fazer agora é rodar. 
+
+Então, repara que quando a gente rodar o new order main, ele mandou para a partição 0. 
+
+Mandei de novo. Mandou para a repartição um.
+
+Aqui ele mandou para a 0, azar o dele, isso aqui não tem nada a ver, pode ser repartições diferentes, aliás, principalmente porque aqui só tem uma partição e aqui a gente tem três. Então, aqui, ele mandou agora para a partição 1.
+
+Curiosamente, a partição 0 e a partição 1, estão nesse cara, vamos rodando até cair na partição 2? 
+
+Vou rodar de novo, algum ID vai para partição 2, alguma hora, lembrando que a partição é 0, 1 e 2. 
+
+Olha, foi para a partição 2. 
+
+Quer dizer que se eu fizesse um for disso daqui, invés de enviar só uma vez, enviasse 100 pedidos, invés de fazer isso uma única vez, eu fizesse isso 100 vezes, então vou fazer um for, estou fazendo da maneira mais tosca, mais antigona com for simples e vou executar esse código aqui 100 vezes, o que que vai acontecer?
+
+Vai ter mensagem indo para tudo que é lado, vamos rodar? 
+
+estou rodando, está mandando as mensagens e esse aqui, como ele demora, ele vai processando.
+
+Processou na partição 0, 17, agora na partição 1, o offset 2, quer dizer, a terceira mensagem da partição 1, agora a quarta mensagem da partição 1. 
+
+Aqui, eu estou na quarta mensagem ou quinta, provavelmente, 0, 1, 2, 3, 4, 5 da partição 2, então eles estão executando, eles estão consumindo, cada um nas suas partições em paralelo.
+
+Então o número de partições tem que ser maior ou igual ao número de consumidores dentro de um grupo, senão o consumidor dentro daquele grupo fica parado olhando para o teto e aqui, eu gerei muita coisa. 
+
+#### kafka-consumer-groups (kafka-consumer-groups.bat --all-groups)
+A gente também consegue um comando super legal e importante no dia-a-dia, é o “bin/kafka-consumer-groups.
+
+```
+.\bin\windows\kafka-consumer-groups.bat --all-groups --bootstrap-server localhost:9092 --describe
+```
+
+Eu quero analisar os grupos de consumo, a gente pode falar o bootstrap server, por exemplo, que é o nosso localhost:9092, um dos servidores que a gente tem, que é o único e falar para ele: “Descreve para mim como que estão os grupos de consumo, descreve”. 
+
+Mostra aí para mim, eu quero saber todos os grupos, --all groups. 
+
+Então, o que que ele mostra aqui para mim?
+
+Ele vai mostrar: “O grupo e-mail service, que é o e-mail service, eu estou interessado no grupo Fraud detector service”, o grupo fraud detector service, olha, 1, 2, 3, tem três lugares aqui rodando. 
+
+O tópico é: e-commerce new order, o fraud detector service escuta e-commerce new order, é verdade.
+
+A partição, olha, esse daqui está responsável pela partição 0, esse pela partição 1, esse pela partição 2. 
+
+Repara aqui, log e offset, quantas mensagens tem nessa partição? 
+
+Nessa partição tem 43, nessa 40, nessa 36; current offset, quer dizer, esse nosso grupo está processando qual mensagem dessa partição?
+
+Ele está na mensagem 18 de 43, isso é, faltam 25; esse está na mensagem 2 de 40, isso é, faltam 38; essa está na mensagem 3 de 36, isso é, faltam 33.
+
+E de tempo em tempo, se eu rodar, como eu estou rodando lá o fraud detector service, ele está consumindo aos poucos, ele vai atualizar esses números para a gente, tem que esperar ele notificar o servidor, que ele está consumindo.
+
+Então repara, ele está processando, aqui também, processando, processando e com isso, ele vai atualizar essas tabelas de offsets, de o quanto ele já consumiu de cada uma das partições.
+
+Então, no final, a gente tem aqui um tópico que está dividido em várias partições, quando a mensagem chega, ela vai para uma dessas partições de acordo com a chave, ela vai para uma dessas partições.
+
+A gente tem consumidores separados por grupo, todo o grupo vai receber todas as mensagens, mas dentro de um grupo, cada um dos consumidores vai acessar o número de partições, divido pelo número de consumidores.
+
+Então, se eu tenho cinco partições e dois consumidores, uma vai acessar dois e outra vai acessar três partições. 
+
+Aqui, no meu caso, a gente pode até ver, consumer ID, a gente tem um consumidor aqui, que é esse 7cb, consumindo essas duas partições e um outro consumidor consumindo essa partição.
+
+#### Client ID no consumer
+Inclusive, esse consumer ID, é um valor que você pode setar, você pode vim no seu fraud detector service e falar: “Eu quero dar um nome para o meu consumidor”, cada uma das vezes que eu rodo, eu vou querer um config.clientID.
+
+O meu client ID vai ser tal, você pode colocar o IP da sua máquina, mas repara, se tiver dois rodando no mesmo IP, vai ficar bizarro, então o ideal é você dar um ID único aqui. Você poderia, por exemplo, colocar o simple name do seu serviço, mais um underline e um ID, UUID.randomUUID.toString.
+
+é um ID único que eu estou gerando, que se assemelha um pouco ao que ele fez aqui, consumer 1, que ficou padrão e UUID que ele gerou, não sei se é UUID, mas um ID que ele gerou aqui para cada um desses dois.
+
+A gente tem dois, um consumindo essas duas partições e essa é uma outra, se a gente rodar de novo, vamos ver se atualizou, se os consumidores já “comitaram”, já notificaram o Kafka de terem consumido todas as mensagens. 
+
+Olha, esse aqui já notificou, inclusive notificou que já terminou 36 de 36.
+
+Os outros ainda estão consumindo, e não notificou ainda que já processou diversas delas. 
+
+A gente vai falar sobre esse commit, etc., com o passar do tempo. 
+
+Então, com isso, a gente viu como paralelizar e qual é a sacada e importância da chave para paralelização.
+
+Então, agora, ele terminou e ele notificou, ele fez um commit e na hora que ele tentou fazer um commit aqui, parece que deu algum erro, me parece. Vamos ver se deu algum erro ou não, dá uma olhada, aqui... Ele conseguiu “comitar” a primeira, ele falou: “Eu consumi do 36 em diante, mas na segunda partição deu algum erro, do 2 e o 40”, ele não conseguiu.
+
+Na partição 1 e na 0, que são essas duas aqui, nessas duas partições deu algum erro, por quê? 
+
+Porque no meio do caminho, enquanto a gente estava rodando aqui, enquanto a gente estava rodando, o nosso Kafka decidiu rebalancear.
+
+Como ele decidiu rebalancear, o que que aconteceu? 
+
+Foi tudo mudado, quem estava em qual partição, foi alterado, como quem estava em qual partição foi alterado, ele não conseguiu “comitar” as partições.
+
+Ele até falou: “Dei a sorte de pegar o momento, que o fraud detector service estava rebalanceando as partições, de acordo com as partições”, e aí, ele não conseguiu “comitar” e o que que está acontecendo agora? 
+
+Então agora, o que que ele tem aqui? “(RE-) Joining group”, está tentando rejuntar o grupo, enquanto isso, esse cara aqui está processando, esse aqui está processando, está processando. Esse cara aqui ainda está processando, mas ele não consegue ainda se comunicar aqui porque ele está fazendo o rebalanceamento.
+
+Então, o que que é perigoso aqui? 
+
+Se a gente ficar consumindo muita mensagem de uma vez só, quando a gente faz o commit, pode estar no meio de um rebalanceamento e aí, se perder completamente.
+
+Então a gente gostaria de ter controle fino sobre o commit, tem várias maneiras de fazer isso.
+
+NewOrderMain.java
+```
+public class NewOrderMain {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        var producer = new KafkaProducer<String, String>(properties()); //<String,String> é a chave,valor, sendo o valor o tipo da mensagem
+
+        for(int i = 0; i < 100; i++) {
+            var key = UUID.randomUUID().toString();
+            var value = key + "- 12345, 6789, 1209";
+            var record = new ProducerRecord<String, String>("ECOMMERCE_NEW_ORDER", key, value); // parametros: topico, chave, mensagem
+
+            Callback callback = (data, ex) -> {
+                if (ex != null) {
+                    ex.printStackTrace();
+                    return;
+                }
+                System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
+            };
+
+            var email = "thank you for your order! we are processing your order!";
+            var emailRecord = new ProducerRecord<>("ECOMMERCE_SEND_EMAIL", key, email);
+
+            // producer.send(record); // envia a mensagem assincrona
+            // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
+            producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
+            //segunda mensagem
+            producer.send(emailRecord, callback).get();// envia a mensagem sincrona com callback (lambda)
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092"); // ip e porta do kafka
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da chave
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da mensagem
+        return properties;
+    }
+}
+```
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var consumer = new KafkaConsumer<String, String>(properties());
+
+        consumer.subscribe(Collections.singletonList("ECOMMERCE_NEW_ORDER")); // inscriçao nos topicos ouvidos
+
+        while (true) { // fica chamando o kafka para procurar mensagens
+
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    System.out.println("-----------------");
+                    System.out.println("Processando new order, checking for fraud");
+                    System.out.println(record.key());
+                    System.out.println(record.value());
+                    System.out.println(record.partition());
+                    System.out.println(record.offset());
+
+                    try {
+                        // simular um serviço demorado
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        // ignoring
+                        throw new RuntimeException(e);
+                    }
+                    System.out.println("Order processed");
+                }
+            }
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, FraudDetectorService.class.getSimpleName());// consumer group name
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, FraudDetectorService.class.getSimpleName() + "_" + UUID.randomUUID().toString()); // ID unico de cada instancia
         return properties;
     }
 }
