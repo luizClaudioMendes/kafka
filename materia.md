@@ -27,6 +27,13 @@ terminado em
       - [Metodo Send().get()](#metodo-sendget)
       - [callback do send()](#callback-do-send)
       - [offset](#offset)
+      - [Criando consumidores em Java](#criando-consumidores-em-java)
+        - [Consumer](#consumer)
+      - [Consumer Group](#consumer-group)
+      - [Rebalancing entre o mesmo Consumer Group](#rebalancing-entre-o-mesmo-consumer-group)
+      - [poll](#poll)
+    - [O que aprendemos?](#o-que-aprendemos)
+  - [Paralelisando tarefas em um serviço](#paralelisando-tarefas-em-um-serviço)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -909,3 +916,200 @@ Pom.xml
 }
 ``` 
 
+#### Criando consumidores em Java
+Quando no meu sistema entra um pedido novo de compra, eu tenho várias coisas que podem acontecer, eu posso ter vários consumidores fazendo diversas coisas, no meu caso, eu vou ter um consumidor que detecta se é uma fraude ou não.
+
+Então, eu quero criar um serviço que detecta se é fraude ou se não é fraude, o que está acontecendo. 
+
+Isso é, eu quero criar aqui, aqui dentro, uma nova classe, que é um FraudDetectorService, que é um serviço, que vai ter várias coisas lá dentro, detecta se é uma fraude ou se não é uma fraude o que está acontecendo aqui.
+
+Então, eu também vou ter uma função aqui, um método main estático e o que eu vou fazer agora que é criar um consumidor. 
+
+##### Consumer
+Então, eu vou criar um consumer, que é um new kafka consumidor. 
+
+Lembrando, a chave vai ser uma string e o value também é uma string.
+
+Então, crio isso aqui e ele recebe o quê? 
+
+As propriedades de um consumidor, igual a gente tinha feito antes, criar aqui o properties, o que que eu vou fazer? 
+
+Vou criar o meu properties, var properties, igual a new properties, retornar esses properties e configurá-los, certo?
+
+Por padrão, o que que os meus properties vão ter?  
+
+Primeiro, ConsumerConfig, não mais ProducerConfig. 
+
+O servidor bootstrap servers config, da onde que ele vai escutar, ele vai escutar no 127.0.0.1:9092 ou vai pelo menos tentar começar a conectar com lá. 
+
+A gente vai querer falar para ele, por exemplo, qual que é o deserializador, antes a gente serializou se string para bytes, agora a gente está de bytes para transformar em string.
+
+Então as chaves vão ser deserializadas através do StringDeserializer.class.getName. 
+
+Então, esse aqui é o deserializador da chave e do valor, mesma coisa, é o deserializador de string. 
+
+Então, o que que o meu consumidor vai fazer? 
+
+O consumidor vai falar o seguinte: “Eu gostaria de consumir uma mensagem, eu gostaria de consumir mensagens de algum lugar”, consumer.subscribe, em algum tópico.
+
+Eu preciso falar qual é o tópico que eu quero subscrever e aí, você passa uma lista, uma colections. 
+
+Eu vou passar uma singletonList, que é uma forma fácil de criar uma lista e na minha lista é uma ECOMMERCE_NEW_ORDER, esse é o tópico que eu estou escutando.
+
+Você poderia escutar por mais de um? 
+
+Poderia, é comum? 
+
+Não. 
+
+Por quê? 
+
+Porque fica uma bagunça alguém escutando de vários tópicos, é super raro a gente escutando de vários tópicos, é muito raro, por quê? 
+
+Porque cada serviço vai ter uma tarefa, um objetivo específico.
+
+Se é um objetivo específico, vai estar escutando provavelmente um tópico específico, provavelmente, é raro escutar mais de um tópico. 
+
+O que que eu quero fazer agora? 
+
+Pergunta se tem mensagem aí dentro, “Consumer, pergunta se tem mensagem aí dentro”, por algum tempo.
+
+Eu tenho que perguntar por algum tempo, um Duration.ofMillis, milissegundos, cem milissegundos para mim é o suficiente. 
+
+Então, isso daqui vai me devolver o quê? 
+
+Vários registros, quem são esses registros? 
+
+Os registros que a gente enviou. 
+
+Se os registros estão vazios, se eles estão vazios, então não tem nada, sysout “Não encontrei registros”, agora return. 
+
+Se eu encontrei registros, eu quero fazer um for, var record e records, para cada um dos registros, eu quero fazer alguma coisa.
+
+Imprimir alguma coisa, então “Processando new order” e aí, o dado da ordem que a gente vai colocar daqui a pouquinho é “... new order checking for fraud”, então, checando por uma fraude, o que que a gente vai colocar?
+
+Vamos colocar uma informação, o record tem várias informações, por exemplo, a chave; por exemplo, o valor da mensagem, então esses dois valores; por exemplo, a partição onde foi enviada e por exemplo, um offset dessa mensagem, são as quatro mensagem que a gente tem.
+
+Eu vou colocar só um sout aqui mais bonitinho com um monte de hífen, só para a gente ver bem claro: “Começamos uma mensagem nova”, que a gente está parseando e aí, a gente sai parseando cada uma dessas mensagens.
+
+Para simular alguma coisinha lerda ou fingir um processamento de fraude, eu vou colocar um Thread.sleep, vou dormir cinco segundos entre em um outro, entre um record e outro. Vou colocar um try catch e vou ignorar esse catch, pois a gente não está fazendo nada com esse sleep, só para demorar aqui.
+
+E a gente vai falar aqui, um sout, a order foi processada, com sucesso, sem sucesso, etc. 
+
+Então, dessa maneira a gente processa a nossa order, então a gente quer ver agora rodar uma vez e ver isso acontecer. 
+
+Lembra? 
+
+O nosso offset, a gente mandou quantas mensagens para lá?
+
+A gente já mandou três. 
+
+Eu vou tentar rodar pela primeira vez esse fraud detector service e ver o que acontece. 
+
+Rodou, exception, o que que ele falou? 
+
+Para você rodar, você precisa de um grupo, calma aí, como assim, um grupo?
+
+“Você não falou nada de grupo lá atrás, Guilherme”, acontece que é o seguinte, eu posso ter detector de fraude rodando e o detector de fraude quer consumir todas as mensagens, mas eu posso também ter um e-mail: “Olha, a sua compra está sendo processada”, que eu também quero rodar ou eu posso ter um sistema de Analytics, que analisa e fala: “Tive mais um pedido”.
+
+Então, eu posso ter vários lugares, várias coisas escutando essa mensagem, escutando esse tópico e eu quero que cada um deles recebessem todas as mensagens.
+
+Então, o fraud detector services, tem que receber todas as mensagens, o log service, tem que receber todas as mensagem, o outra coisa service, tem que receber todas as mensagens, cada um deles tem que receber todas as mensagens, então cada um deles é um grupo diferente.
+
+#### Consumer Group
+Então, quando a gente criar um consumer, a gente precisa dizer qual que é o grupo, o ID do grupo. 
+
+E o ID do nosso grupo vai ser o FraudDetectorService.class.getSimpleName, para ficar mais simples o grupo ID, só FraudFetectorService. 
+
+Então, o meu serviço vai ter esse grupo, que se chama FraudFetectorService.
+
+#### Rebalancing entre o mesmo Consumer Group
+Então, o fraud detector service vai receber todas as mensagens, todas as mensagens, se eu tiver um outro serviço, que tem outro grupo, ele vai receber também todas as mensagens, mas se dois serviços tem o mesmo grupo, as mensagens, vão “metade, metade”, não é exatamente “metade, metade”, mas elas serão distribuídas entre esses dois serviços que estão escutando através do mesmo grupo.
+
+Então um grupo vai escutar todas as mensagens, mas se você tiver vários serviços rodando no mesmo grupo, você não sabe qual deles vai receber quais mensagens. 
+
+No final serão processadas todas, mas você não sabe qual vai receber qual, então, essa é a sacada do grupo.
+
+Então, a gente está criando um grupo aqui para a gente, vamos tentar rodar de novo. 
+
+e agora, opa, “Não encontrei registros”, lembra? 
+
+Ele está naquele padrão, que ele tenta pegar as mensagens novas e não encontra registros.
+
+Então, o que que a gente quer fazer? A gente quer continuar escutando, eu quero deixar esse serviço rodando, rodando, rodando, por quê? 
+
+Porque quando vier novas mensagens, ele tem que trabalhar.
+
+#### poll
+Então o normal, bem costumeiro mesmo, é a gente colocar a chamada do poll, essa chamada do poll, num laço, while true ou while alguma outra coisa, você pode ter algum sinalizador de quando tem que ser destruído o serviço, mil maneiras de fazer isso, a gente vai deixar aqui num while true por enquanto.
+
+Então, eu vou rodar de novo e ele vai ficar escutando. 
+
+Então, ó: “Não encontrei”, “Não encontrei”, “Não encontrei”, agora está imprimindo demais o não encontrei, né? Então eu vou fazer assim, quando ele encontrar, ele fala para a gente: “Encontrei tantos registros”.
+
+Então, se ele encontrar, ele imprime quantos ele encontrou e aí, isso aqui, a gente pode mover para dentro do if.
+
+Então, se não estiver vazio, ele vai mostrar para a gente que ele encontrou, se eu rodar aqui, olha, uma nova ordem de compra, vou rodar, então ele roda aqui separado uma nova ordem de compra.
+
+A gente olha lá na fraud, olha aqui a chave, o valor, o 0, o 3 que é o offset e a ordem foi processada, se eu mudar os valores de produção, o valor agora é 1234 e rodar de novo, estou rodando agora uma nova ordem, 1234, vamos ver o fraud detector service, recebeu outra mensagem?
+
+O fraud detector service recebeu a outra mensagem. 
+
+Com isso a gente tem o nosso produtor e o nosso consumidor.
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var consumer = new KafkaConsumer<String, String>(properties());
+
+        consumer.subscribe(Collections.singletonList("ECOMMERCE_NEW_ORDER")); // inscriçao nos topicos ouvidos
+
+        while (true) { // fica chamando o kafka para procurar mensagens
+
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                continue;
+            }
+            for (var record : records) {
+                System.out.println("-----------------");
+                System.out.println("Processando new order, checking for fraud");
+                System.out.println(record.key());
+                System.out.println(record.value());
+                System.out.println(record.partition());
+                System.out.println(record.offset());
+
+                try {
+                    // simular um serviço demorado
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    // ignoring
+                    throw new RuntimeException(e);
+                }
+                System.out.println("Order processed");
+            }
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, FraudDetectorService.class.getSimpleName());// consumer group name
+
+        return properties;
+    }
+}
+
+```
+
+### O que aprendemos?
+* O que são produtores
+* O que são consumidores
+* Criação de tópicos manualmente
+* Como instalar e rodar o Kafka
+
+## Paralelisando tarefas em um serviço
