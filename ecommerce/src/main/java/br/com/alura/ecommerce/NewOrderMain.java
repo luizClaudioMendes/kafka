@@ -1,5 +1,6 @@
 package br.com.alura.ecommerce;
 
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -16,15 +17,22 @@ public class NewOrderMain {
         var value = "12345, 6789, 1209";
         var record = new ProducerRecord<String, String>("ECOMMERCE_NEW_ORDER", value, value); // parametros: topico, chave, mensagem
 
-        // producer.send(record); // envia a mensagem assincrona
-        // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
-        producer.send(record, (data, ex) -> {
-            if(ex != null) {
+        Callback callback = (data, ex) -> {
+            if (ex != null) {
                 ex.printStackTrace();
                 return;
             }
-            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset()+ "/ timestamp" + data.timestamp());
-        }).get(); // envia a mensagem sincrona com callback (lambda)
+            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
+        };
+
+        var email = "thank you for your order! we are processing your order!";
+        var emailRecord = new ProducerRecord<>("ECOMMERCE_SEND_EMAIL", email, email);
+
+        // producer.send(record); // envia a mensagem assincrona
+        // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
+        producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
+        //segunda mensagem
+        producer.send(emailRecord, callback).get();// envia a mensagem sincrona com callback (lambda)
     }
 
     private static Properties properties() {

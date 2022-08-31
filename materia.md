@@ -34,6 +34,8 @@ terminado em
       - [poll](#poll)
     - [O que aprendemos?](#o-que-aprendemos)
   - [Paralelisando tarefas em um serviço](#paralelisando-tarefas-em-um-serviço)
+    - [Vários consumidores e produtores](#vários-consumidores-e-produtores)
+    - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -1113,3 +1115,265 @@ public class FraudDetectorService {
 * Como instalar e rodar o Kafka
 
 ## Paralelisando tarefas em um serviço
+### Vários consumidores e produtores
+Vamos criar, então, agora mais um produtor e mais um consumidor, isso é, o que eu gostaria de fazer agora era, na verdade, no momento que eu tenho uma nova ordem, despachar uma mensagem de nova ordem, eu também gostaria de despachar uma mensagem de por exemplo, um e-mail.
+
+Então, eu gostaria de passar de repente duas mensagens, não só uma nova ordem, mas também um e-mail. 
+
+Então, além desse record aqui, que é uma string, string, que eu estou enviando, eu queria enviar mais um, eu queria enviar um segundo record, que é um e-mail baseado nessa compra.
+
+Então, o que eu vou fazer é literalmente falar para o meu produtor, enviar um novo record, esse daqui vai ser um record baseado... lembra que o record é um producer record, então ele vai mandar o meu e-mail e o mesmo listener. 
+
+Calma aí, se eu quero mesmo que o listener que imprime as mensagens e etc., eu posso extrair ele para alguma coisa.
+
+Eu primeiro vou extrair uma variável, vou extrair uma variável aqui para a gente, que eu vou chamar de callback. Então com esse callback, eu preciso de um e-mail record aqui também, e-mail record, producer record e o tópico é e-commerce, send e-mail, aqui eu estou pedindo realmente para enviar um e-mail.
+
+E eu vou passar o valor do e-mail, tanto a chave do e-mail, quanto o valor do meu e-mail, lembra, por enquanto a gente não está usando a chave, mas eu prefiro passar o parâmetro da chave, então o que eu vou fazer é passar o mesmo valor, tanto para uma chave, quanto para o meu e-mail, vou passar, por exemplo, o mesmo valor.
+
+Então, o que vou ter aqui é um var e-mail, “Thak you for your order!”, pronto, repetido e bola para frente.
+
+Então, a gente está processando essa sua compra, então se eu rodar ela, vai enviar uma mensagem, que é através do tópico ECOMMERCE_NEW_ORDER e uma través do ECOMMERCE_SEND_EMAIL. 
+
+Claro, além do fraud detector service, eu vou criar então agora um outro, que é o meu e-mail service.
+
+Eu dou um copy, paste, EmailService, claro, depois a gente vai extrair isso daqui para ficar sem repetir código, a gente vai dar um subscribe em qual tópico? 
+
+ECOMMERCE_SEND_EMAIL.
+
+Olha os cuidados, send e-mail, recebe na strings, etc., a gente está fazendo o poll e encontrando, só que invés que processem o new order, é send e-mail e a gente está enviando esse e-mail. 
+
+Eu vou esperar aqui só um segundo, invés de cinco e aí, eu vou falar que o e-mail foi enviado.
+
+Então aqui, a gente está enviando o e-mail. 
+
+Cuidado, o grupo ID é o ID do e-mail service, como a gente deu um copy paste, ele já trocou esse valor para a gente, para e-mail service. 
+
+Então, eu tenho dois grupos agora, o grupo da fraude e o grupo do e-mail, dois grupos diferentes.
+
+E aí, a gente está aqui escutando os vários e-mails. Então, o que a gente pode fazer? 
+
+Vamos rodar tudo, então, repara que eu já tenho aqui alguma coisa rodando, vou dar stop, não vou querer deixar nada rodando.
+
+Eu vou rodar, tanto o nosso e-mail service, e o nosso fraud detector service e com os dois rodando, eu vou mandar um pedido de compra, mandei o pedido e compra com o mesmo callback.
+
+Então a gente vê, olha, enviou o new order e envio o send e-mail. 
+
+No fraud detector teve a nova order e o no e-mail, recebeu o e-mail. 
+
+Então, repare que agora, criar novos serviços, consumidores e criar novos pontos de produção, basta se reutilizar o que a gente está fazendo, mas mais interessante seria agora a gente tentar misturar tudo isso.
+
+Vou criar um log, um serviço de log, então da mesma maneira tem esse e-mail service, eu vou querer um log service. 
+
+O log service vai ser um caso mais genérico, ao invés de ele escutar o tópico ECOMMERCE_SEND_EMAIL, ele vai querer escutar diversos tópicos, Pattern.compile, que segue uma expressão regular, quem seguem a expressão regular que é a seguinte “ECOMMERCE*”, qualquer coisa que começa com ECOMMERCE.
+
+Só que é uma expressão regular, expressão regular, para quem ainda não conhece, ponto quer dizer qualquer coisa. 
+
+Então, e-commerce qualquer coisa. 
+
+esse é o tópico que eu vou dar subscribe. 
+
+Agora, como é log, então aqui encontrei tantos registros e invés de send e-mail, aqui é só um log, não vou esperar nada, vou sair imprimindo, não estou simulando que foi enviado um e-mail, não estou fazendo nada, estou logando e vendo o log acontecer.
+
+Então, repare que agora eu vou ter três serviços rodando, aqui em baixo, esse é o serviço de log, está no grupo ID log, vou rodar. 
+
+Então, eu tenho aqui três, o e-mail service está rodando, o fraud detector service está rodando e o log service está rodando.
+
+Quando eu enviar uma mensagem com o nosso new order main, o que que vai acontecer?
+
+Ele dispara duas mensagens e essas mensagens são consumidas por quem? 
+
+A de e-mail, pelo e-mail service, a de ordem, pelo fraud service e ambas são consumidas pelo log service, ambas estão aqui.
+
+Nesse nosso caso do log, é legal a gente imprimir o tópico agora, por quê? 
+
+Porque o tópico agora pode ser qualquer um, então a gente pode imprimir inclusive o record.topic. 
+
+Então, vou rodar novamente, a gente vai ver o log com os tópicos distintos.
+
+Eu vou rodar de novo agora o new order main, então vamos rodar ele vai disparar as duas mensagens e o log service tem que consumir ambas. 
+
+Lembra que eu falei que é muito raro a gente escutar mais de um tópico? 
+
+É muito raro, aqui é um de log genérico, só para a gente ver todas as mensagens que estão sendo enviadas de um lado para o outro.
+
+Olha, chegou uma do e-commerce new order, chegou uma do e-commerce send e-mail. 
+
+Então, com isso, a gente é capaz de criar quantos grupos consumidores a gente quiser, cada um deles vai receber todas as mensagens daquele tópico a partir de agora.
+
+E isso que a gente fez até aqui, a gente vai avançar e vai fazer coisas mais legais também.
+
+NewOrderMain.java
+```
+public class NewOrderMain {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        var producer = new KafkaProducer<String, String>(properties()); //<String,String> é a chave,valor, sendo o valor o tipo da mensagem
+
+        var value = "12345, 6789, 1209";
+        var record = new ProducerRecord<String, String>("ECOMMERCE_NEW_ORDER", value, value); // parametros: topico, chave, mensagem
+
+        Callback callback = (data, ex) -> {
+            if (ex != null) {
+                ex.printStackTrace();
+                return;
+            }
+            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
+        };
+
+        var email = "thank you for your order! we are processing your order!";
+        var emailRecord = new ProducerRecord<>("ECOMMERCE_SEND_EMAIL", email, email);
+
+        // producer.send(record); // envia a mensagem assincrona
+        // producer.send(record).get(); // envia a mensagem sincrona (espera a resposta de recebimento)
+        producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
+        //segunda mensagem
+        producer.send(emailRecord, callback).get();// envia a mensagem sincrona com callback (lambda)
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092"); // ip e porta do kafka
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da chave
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da mensagem
+        return properties;
+    }
+}
+```
+
+LogService.java
+```
+public class LogService {
+    public static void main(String[] args) {
+        var consumer = new KafkaConsumer<String, String>(properties());
+
+        consumer.subscribe(Pattern.compile("ECOMMERCE.*")); // inscriçao nos topicos ouvidos (todos os que começam com ECOMMERCE
+
+        while (true) { // fica chamando o kafka para procurar mensagens
+
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+
+                for (var record : records) {
+                    System.out.println("-----------------");
+                    System.out.println("LOG");
+                    System.out.println(record.topic());
+                    System.out.println(record.key());
+                    System.out.println(record.value());
+                    System.out.println(record.partition());
+                    System.out.println(record.offset());
+                }
+            }
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, LogService.class.getSimpleName());// consumer group name
+
+        return properties;
+    }
+}
+```
+
+EmailService.java
+```
+public class EmailService {
+    public static void main(String[] args) {
+        var consumer = new KafkaConsumer<String, String>(properties());
+
+        consumer.subscribe(Collections.singletonList("ECOMMERCE_SEND_EMAIL")); // inscriçao nos topicos ouvidos
+
+        while (true) { // fica chamando o kafka para procurar mensagens
+
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+
+                for (var record : records) {
+                    System.out.println("-----------------");
+                    System.out.println("sending email");
+                    System.out.println(record.key());
+                    System.out.println(record.value());
+                    System.out.println(record.partition());
+                    System.out.println(record.offset());
+
+                    try {
+                        // simular um serviço demorado
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        // ignoring
+                        throw new RuntimeException(e);
+                    }
+                    System.out.println("email sent");
+                }
+            }
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, EmailService.class.getSimpleName());// consumer group name
+
+        return properties;
+    }
+}
+```
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var consumer = new KafkaConsumer<String, String>(properties());
+
+        consumer.subscribe(Collections.singletonList("ECOMMERCE_NEW_ORDER")); // inscriçao nos topicos ouvidos
+
+        while (true) { // fica chamando o kafka para procurar mensagens
+
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    System.out.println("-----------------");
+                    System.out.println("Processando new order, checking for fraud");
+                    System.out.println(record.key());
+                    System.out.println(record.value());
+                    System.out.println(record.partition());
+                    System.out.println(record.offset());
+
+                    try {
+                        // simular um serviço demorado
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        // ignoring
+                        throw new RuntimeException(e);
+                    }
+                    System.out.println("Order processed");
+                }
+            }
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, FraudDetectorService.class.getSimpleName());// consumer group name
+
+        return properties;
+    }
+}
+```
+
+### 
