@@ -49,7 +49,9 @@ terminado em
   - [Criando nossa camada](#criando-nossa-camada)
     - [Extraindo uma camada de consumidor (refactor)](#extraindo-uma-camada-de-consumidor-refactor)
     - [Extraindo nossa camada de producer](#extraindo-nossa-camada-de-producer)
-    - [](#)
+    - [O que aprendemos?](#o-que-aprendemos-2)
+  - [Serializaçao customizada](#serializaçao-customizada)
+    - [Diretórios do Kafka e Zookeeper](#diretórios-do-kafka-e-zookeeper)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -2300,4 +2302,61 @@ class KafkaService implements Closeable {
 }
 ```
 
-### 
+### O que aprendemos?
+* A importância de evitar copy e paste
+* Criando nossa camada de abstração
+* Criando nosso Dispatcher
+* Criando nosso Service
+
+## Serializaçao customizada
+### Diretórios do Kafka e Zookeeper
+Numa das atividades, eu citei que de tempo em tempo, se você startar a sua máquina, a configuração padrão do server properties e do zookeeper, é que os arquivos serão guardados no diretório /tmp no Mac e no Linux, isso é, num diretório temporário, no Windows também é um diretório temporário.
+
+O que que isso vai acontecer? 
+
+Em qualquer sistema operacional, se você está armazenando dados em um diretório temporário, quando você menos espera, esses arquivos podem desaparecer. 
+
+Então, de tempo em tempo, se os seus arquivos desaparecerem, você vai ter que começar de novo.
+
+Então tem duas maneias de lidar com isso, uma é, quando você quiser manter um diretório para valer, onde vão ficar as suas mensagens, o que você vai fazer? 
+
+Você vai pegar esse diretório, por exemplo, eu estou no diretório aqui onde está o meu Kafka, lembra que é o diretório apps.
+
+Então, eu vou criar um diretório aqui dentro chamado data, que é os dados. 
+
+Dentro do data, eu vou criar a pasta do zookeeper e eu vou criar também o do kafka, então tem esses dois diretórios. 
+
+Então repara que dentro do data, eu vou ter esses dois diretórios.
+
+Então, /zookeeper, /Kafka, são os diretórios que eu quero utilizar. 
+
+Vou voltar aqui e vou editar os arquivos de configuração, o config/server.properties, em algum lugar, ele fala diretório, olha aqui, tmp kafka logs, então invés de ter tmp/kafka-logs, onde que eu vou guardar? 
+
+no diretório que você queria. 
+
+No meu caso é data/kafka.
+
+Configurar o zookeeper.properties, também tem um lugar que fala de diretório, tmp/zookeeper, vai virar tudo isso /zookeeper. 
+
+Então, se eu der um ls aqui no diretório data, eu vou ver que eu tenho tanto o zookeeper, quanto o Kafka.
+
+Então, eu vou dar stop primeiro no Kafka. 
+
+Se eu quisesse, eu podia olhar o diretório tmp, que a gente vai ter lá tanto o zookeeper, quanto o kafka logs, tem tudo lá.
+
+Então, eu poderia simplesmente remover a qualquer instante o kafka logs e o tpm zookeeper, a qualquer instante que eu quisesse. 
+
+Então, vamos rodar o zookeeper agora, com o diretório novo e o kafka com o diretório novo.
+
+eu não devo ter agora nenhum tópico, se eu der uma olhada, eu pedi: “Me fala os tópicos”, não deve ter tópico, porque é tudo novo, vamos dar uma olhada? 
+
+É tudo novo. 
+
+Então, se eu der uma olhadinha aqui no diretório data zookeeper, já tem o zookeeper lá dentro, os arquivos de dados dele.
+
+E do Kafka também já tem os dados dos tópicos, só cuidado, o Kafka chama de log, mas não é um log que simplesmente: “Ah, é uma linha opcional, pode jogar fora, pode apagar”, não, log é no sentido de registro, são os registros que o Kafka armazenou e o Kafka precisa desses registros armazenados por determinado tempo ou tamanho em disco, configurações do arquivo.
+
+Então, eu estou agora com o Kafka, com o diretório fixo, trabalhando mais bonitinho, o que que eu quero fazer? 
+
+O que eu gostaria de fazer era parar de usar string para tudo que é lado. 
+
