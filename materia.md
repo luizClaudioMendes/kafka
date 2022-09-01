@@ -48,6 +48,7 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-1)
   - [Criando nossa camada](#criando-nossa-camada)
     - [Extraindo uma camada de consumidor (refactor)](#extraindo-uma-camada-de-consumidor-refactor)
+    - [Extraindo nossa camada de producer](#extraindo-nossa-camada-de-producer)
     - [](#)
 
 
@@ -2039,6 +2040,262 @@ public class FraudDetectorService {
             throw new RuntimeException(e);
         }
         System.out.println("Order processed");
+    }
+}
+```
+
+### Extraindo nossa camada de producer
+Da mesma maneira que a gente extraiu o nosso Kafka service, eu quero extrair o Kafka producer, só que Kafka producer já é uma classe que existe, eu vou chamar de “KafkaDispatcher”, o Kafka dispatcher, a gente vai usar aqui, quando a gente quer gerar coisas.
+
+Então, a primeira coisa que eu vou querer ter é um dispatcher, que vai ser o nosso Kafka dispatcher, então o nosso Kafka dispatcher tem que ter um construtor. 
+
+Dentro desse construtor, ele vai criar o nosso producer, é esse cara aqui.
+
+Precisa dos properties? 
+
+Vamos tirar daqui e jogar para lá. 
+
+Pensa, esses properties são genéricos ou são específicos? 
+
+Dá uma olhada, olha bootstrap service, key e value, como a gente só está trabalhando com string por enquanto, ele é bem genérico. 
+
+Depois, quando a gente trabalhar com outros tipos, aí ele é específico.
+
+a gente criou o nosso dispatcher, o que que a gente vai fazer? 
+
+Um for. 
+
+Dentro desse for, a gente gostaria de enviar uma mensagem, então eu gostaria de simplesmente ir mais direto: “Eu tenho a minha chave e tenho o meu valor, eu quero enviar, eu quero falar dispatcher, send”, nesse tópico aqui, envia para mim essa chave e esse valor.
+
+E aí, ele se vira com tudo isso daqui, tudo isso e isso vai embora, então vou chamar o send e ele vai usar o callback padrão que a gente criou, que é só uma informaçãozinha de log, depois podia receber como parâmetro um callback, etc.
+
+Tudo coisa que a medida que a gente precisar, a gente vai fazer. 
+
+Aqui é o tópico. 
+
+A chave e o valor já são parâmetros, vou usar aqui, imprimir, etc., o get é uma exception que pode ocorrer, então eu estou jogando aqui na exception.
+
+e agora o e-mail, como é que eu faço o dispatcher do e-mail?
+
+Então só dispatcher.send, o tópico que é esse aqui, a chave e o valor. 
+
+A chave eu estou usando a mesma, que é o ID do usuário e o valor é o e-mail que eu vou enviar. 
+
+Então, estão aí os dois sends. 
+
+Vamos testar esse cara?
+
+Então, o e-mail e o fraud já estão rodando. 
+
+Então, quando eu testar, ele deve mandar 10 mensagens, vamos ver. 
+
+Tentando, enviou as 10 mensagens, 20 no total, 10 de cada tópico e aqui, você vê ele recebendo essas mensagens, está funcionando.
+
+Eu quero só refinar uma coisinha, quando a gente tem recursos como esses, que são Kafka producer, que fica com porta aberta, é comum a gente querer dar um close. 
+
+Então a interface que ajuda a gente a implementar o close se chama closeable.
+
+E aí, você coloca a função close, que vai fazer Um producer.close e aí, você armazenou agora um estado, podia estar aberto, podia estar fechado, podia estar o que fosse, mas agora a gente tem um close aqui explicito,
+
+O legal de fazer o close desse maneira é que a gente pode usar as características do Java para tentar executar esse código, se acontecer qualquer exception aqui dentro, qualquer exception que aconteça aqui dentro, o que que ele vai tentar fazer? 
+
+Ele vai fechar esse cara aqui para a gente.
+
+Então, qualquer coisa que aconteça aqui, ele vai fechar o Kafka dispatcher, ele está falando: “Pode acontecer um IO exception”, sim, mas você poderia tirar aqui o throws IO exception, porque não acontece. 
+
+Então, nesse caso específico, não tem IO exception, nessa tentativa.
+
+Então agora, não importa, se der sucesso ou se sair por causa de um exception, o seu recurso será fechado, vai ser fechado esse dispatcher aqui. 
+
+Poderia fazer a mesma coisa no nosso service, a gente tem aqui o nosso service, a gente poderia ter um try (catch).
+
+Então, a gente poderia ter um try, quando a gente cria o service e fecha depois do run, então eu faria um try aqui, try nesse cara e um fechar nesse cara aqui, como é que a gente faz isso? 
+
+O Kafka service tem que implementar closeable e a função do closeable é a close, que no nosso caso, não joga exception.
+
+E aí, ele simplesmente fala: “consumer.close”, fechou, ele fecha o nosso consumidor. 
+
+Então aqui, a gente também tem essa garantia de que independente de sair com sucesso ou com exception, ele vai fechar o que tiver que fechar, isso no fraud detector service.
+
+Claro, no e-mail, a gente tem que fazer a mesma coisa, um try e fechar aqui assim, mas é super rápido, direto. 
+
+Então, repara que a gente tem uma refatorada e já começou a colocar uma camada, escondendo um pouco do Kafka para a gente.
+
+Repara que cada vez menos a gente importa coisa do Kafka, a gente só está importando aqui o consumer record, porque a gente recebe o consumer record, a gente consegue transformar isso também. 
+
+Eu acho que para a nossa camada, receber o consumer record faz todo o sentido.
+
+E no dispatcher, na hora que a gente despacha aqui, vamos tirar os imports, a gente não está importando nada do Kafka, mais direto ainda, da maneira que a gente está trabalhando por enquanto. 
+
+Então, a gente vai extraindo, refatorando e deixando mais limpo o nosso código.
+
+
+KafkaDispatcher.java
+```
+public class KafkaDispatcher implements Closeable {
+
+    private final KafkaProducer<String, String> producer;
+
+    KafkaDispatcher() {
+        this.producer = new KafkaProducer<String, String>(properties());
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092"); // ip e porta do kafka
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da chave
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da mensagem
+        return properties;
+    }
+
+    public void send(String topic, String key, String value) throws ExecutionException, InterruptedException {
+        var record = new ProducerRecord<String, String>(topic, key, value); // parametros: topico, chave, mensagem
+
+        Callback callback = (data, ex) -> {
+            if (ex != null) {
+                ex.printStackTrace();
+                return;
+            }
+            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
+        };
+
+        producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
+    }
+
+    @Override
+    public void close() {
+        producer.close();
+    }
+}
+```
+
+NewOrderMain.java
+```
+public class NewOrderMain {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        try(var dispatcher = new KafkaDispatcher()) {
+
+            for (int i = 0; i < 10; i++) {
+                var key = UUID.randomUUID().toString();
+                var value = key + "- 12345, 6789, 1209";
+                dispatcher.send("ECOMMERCE_NEW_ORDER", key, value);
+
+                var email = "thank you for your order! we are processing your order!";
+                dispatcher.send("ECOMMERCE_SEND_EMAIL", key, value);
+            }
+        }
+    }
+}
+```
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var fraudService = new FraudDetectorService();
+        try(var service = new KafkaService(
+                FraudDetectorService.class.getSimpleName(), // group
+                "ECOMMERCE_NEW_ORDER", // topic
+                fraudService::parse // parse function
+        )) {
+            service.run();
+        }
+    }
+
+    private void parse(ConsumerRecord<String, String> record) {
+        System.out.println("-----------------");
+        System.out.println("Processando new order, checking for fraud");
+        System.out.println(record.key());
+        System.out.println(record.value());
+        System.out.println(record.partition());
+        System.out.println(record.offset());
+
+        try {
+            // simular um serviço demorado
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            // ignoring
+            throw new RuntimeException(e);
+        }
+        System.out.println("Order processed");
+    }
+}
+```
+
+EmailService.java
+```
+public class EmailService {
+    public static void main(String[] args) {
+        var emailService = new EmailService();
+        try (var service = new KafkaService(
+                EmailService.class.getSimpleName(),
+                "ECOMMERCE_SEND_EMAIL",
+                emailService::parse
+        )) {
+            service.run();
+        }
+    }
+
+    private void parse(ConsumerRecord<String, String> record) {
+        System.out.println("-----------------");
+        System.out.println("sending email");
+        System.out.println(record.key());
+        System.out.println(record.value());
+        System.out.println(record.partition());
+        System.out.println(record.offset());
+
+        try {
+            // simular um serviço demorado
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // ignoring
+            throw new RuntimeException(e);
+        }
+        System.out.println("email sent");
+    }
+}
+```
+
+KafkaService.java
+```
+class KafkaService implements Closeable {
+    private final KafkaConsumer<String, String> consumer;
+    private final ConsumerFunction parse;
+
+    KafkaService(String groupID, String topic, ConsumerFunction parse) {
+        this.parse = parse;
+        this.consumer = new KafkaConsumer<String, String>(properties(groupID));
+        consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
+    }
+
+    void run() {
+        while (true) { // fica chamando o kafka para procurar mensagens
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    parse.consume(record);
+                }
+            }
+        }
+    }
+
+    private static Properties properties(String groupID) {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupID);// consumer group name
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());// client name
+
+        return properties;
+    }
+
+    @Override
+    public void close() {
+        consumer.close();
     }
 }
 ```
