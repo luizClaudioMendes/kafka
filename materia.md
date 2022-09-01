@@ -45,6 +45,9 @@ terminado em
     - [Max poll e dando mais chances para auto commit](#max-poll-e-dando-mais-chances-para-auto-commit)
       - [Poll](#poll-1)
       - [Maximo de records consumidos](#maximo-de-records-consumidos)
+    - [O que aprendemos?](#o-que-aprendemos-1)
+  - [Criando nossa camada](#criando-nossa-camada)
+    - [Extraindo uma camada de consumidor (refactor)](#extraindo-uma-camada-de-consumidor-refactor)
     - [](#)
 
 
@@ -1829,6 +1832,213 @@ public class FraudDetectorService {
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, FraudDetectorService.class.getSimpleName() + "_" + UUID.randomUUID().toString()); // ID unico de cada instancia
         properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1");// quantidade max de records recebidos no poll
         return properties;
+    }
+}
+```
+
+### O que aprendemos?
+* Como rodar diversos consumidores no mesmo grupo
+* Como paralelizar tarefas
+* A importância da chave para hash
+* Cuidado com poll longo
+
+## Criando nossa camada
+### Extraindo uma camada de consumidor (refactor)
+Vamos, então, agora dar um tapa nesse código todo que a gente criou, lembra que eu fiz bastante copy e paste? 
+
+Um primeiro copy paste foi nessa parte de consumir os códigos, consumir mensagens, todos os nossos services tem os properties e por aí, vai.
+
+Vamos extrair isso, eu vou criar aqui uma classe chamada kafkaService, o kafka service é um serviço meu, então, o que eu vou mudar? 
+
+Eu vou mudar o meu EmailService, para que ele pare de funcionar dessa maneira, o que eu vou querer é dentro do meu método main, fazer uma coisa muito mais simples.
+
+Eu vou querer dar um new kafka service e quando eu crio o kafka service, eu já falo qual é o subject que eu quero escutar, ECOMMERCE_SEND_EMAIL.
+
+vou falar também qual que é a função que eu vou executar para cada mensagem que eu recebo, então eu vou criar uma função aqui no meu e-mail service, que eu vou poder chamar.
+
+eu vou criar uma função chamada tipo parse, algo do gênero, que vai ser chamada. 
+
+E aí, o que mais que eu vou fazer? 
+
+Vou falar propriedades extras que eu tenho interesse, se eu tiver interesse. 
+
+Então isso daqui é o que eu vou querer fazer, esse daqui vai ser o meu service, é um var.
+
+E aí, eu vou fazer um service.run. 
+
+Claro, eu quero ter uma função parse, eu vou querer ter uma função private void parse, que vai receber um record, qual que é o tipo record? 
+
+É um consumer record.
+
+No nosso caso, a gente está trabalhando sempre com strings por enquanto, a chave é string, a gente descerializa e serializa como string e o valor é strings que a gente descerializa e descerializa como string.
+
+Então, essa vai ser a minha função, essa daqui é o parse, vai ser para cada record.
+
+o meu parse, que é o código que está ligado com o envio de e-mail. 
+
+mas repara, o parse é uma função da minha classe e-mail service.
+
+Então esse daqui var, esse daqui que é o meu e-mail service, eu vou criar um new e-mail service, então eu crio um new e-mail service e aí, eu vou falar e-mail service: parse. 
+
+Claro, eu preciso criar esse construtor, que recebe o topic e Uma função de parse, que recebe o record e não devolve nada, eu vou chamar de ConsumerFunction, ela é uma consumer function.
+
+Vou criar essa interface, consumer function, a interface consumer function é uma única função consume, que recebe um consumer record de strings para strings. 
+
+Então é uma função, uma interface que pode ter uma única implementação de função, que recebe um record.
+
+E é isso mesmo que a gente fez com o nosso parse, é bem uma função que recebe um record. 
+
+Então, a gente está passando aqui uma referência para função, (Method References), Java e falando: “Eu quero que você invoque essa função para cada record”
+
+Claro, eu vou criar o método run, que vai rodar para valer aqui a coisa. 
+
+A gente vai criar o consumer, this., como variável membro, this.consumer, criei, final. 
+
+Vou fazer um while, vou pegar os records,vou verificar se está vazio, se não está vazio, eu falo o que eu encontrei, quantos registros encontrei, que deveria ser um, porque a gente está com o max poll 1.
+
+E aí, a gente vai fazer agora o record, para cada record que tem lá dentro, a gente chama o parse. 
+
+Só que, o while, eu vou jogar no método run.
+
+Então, do jeito que eu fiz a função parse, eu tenho que criar um campo para ela, um field, ele é final, então eu tenho o parse aqui para poder ser executado.
+
+E o e-mail service está fazendo isso, está invocando e chamando lá e deixando feliz e contente, “Estou super feliz aí”, a questão é: “Será que esse código funciona?”, vamos testar. 
+
+Vou dar stop aqui em todo mundo, vou rodar o e-mail service e aí, eu vou rodar o new order main uma única vez.
+
+Então, ele está escutando, já tinha e-mail para ele processar, ele está processando um monte de e-mails, então realmente está funcionando.
+
+como o tópico já existia no nosso consumer groups, com esse tópico, então ele continuou da onde ele estava, ele continua da onde ele estava.
+
+Se o consumer group não existia, ele podia começar do final, porque ele não sabia que esse tópico existia, nem nada do gênero. 
+
+está funcionando o nosso e-mail service, vamos migrar o fraud service também, o fraud detector service, para usar o e-mail service. 
+
+Então, assim como esse cara está enviando os e-mails, eu queria que o fraud detector service usasse esse padrão novo.
+
+Então eu crio um fraud detector service, eu vou chamar isso daqui de meu fraudService, aí eu crio o meu service do Kafka e o KafkaService, o KafkaService recebe o tópico, que é isso daqui.
+
+Tudo o que é obrigatório, é passado no construtor, então antes do tópico, eu vou falar qual é o meu grupo, vai ser obrigado. 
+
+Então, antes do tópico, eu vou falar: e-mail service class get simple name. 
+
+Então aqui, eu posso só alterar o meu construtor, adicionar string como primeiro parâmetro.
+
+Aí, ele vai dar uma sugestão de refatoração, de como fazer isso, colocar um valor padrão, um default value e aqui. 
+
+A gente conseguiu extrair os serviços com um código bem mais simples. 
+
+É claro, ele não está suporte aos Paterns, a gente faz depois, quando for o caso de trabalhar no log novamente.
+
+O que eu quero refatorar agora e (extrair) é a mesma coisa para o produtor, eu não quero ficar trabalhando dessa maneira com o produtor, quero deixar bem mais simples, a gente vai fazer daqui a pouco.
+
+KafkaService.java
+```
+class KafkaService {
+    private final KafkaConsumer<String, String> consumer;
+    private final ConsumerFunction parse;
+
+    KafkaService(String groupID, String topic, ConsumerFunction parse) {
+        this.parse = parse;
+        this.consumer = new KafkaConsumer<String, String>(properties(groupID));
+        consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
+    }
+
+    void run() {
+        while (true) { // fica chamando o kafka para procurar mensagens
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    parse.consume(record);
+                }
+            }
+        }
+    }
+
+    private static Properties properties(String groupID) {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupID);// consumer group name
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());// client name
+
+        return properties;
+    }
+}
+```
+
+ConsumerFunction.java
+```
+public interface ConsumerFunction {
+    void consume(ConsumerRecord<String, String> record);
+}
+```
+
+EmailService.java
+```
+public class EmailService {
+    public static void main(String[] args) {
+        var emailService = new EmailService();
+        var service = new KafkaService(
+                EmailService.class.getSimpleName(),
+                "ECOMMERCE_SEND_EMAIL",
+                emailService::parse
+        );
+        service.run();
+    }
+
+    private void parse(ConsumerRecord<String, String> record) {
+        System.out.println("-----------------");
+        System.out.println("sending email");
+        System.out.println(record.key());
+        System.out.println(record.value());
+        System.out.println(record.partition());
+        System.out.println(record.offset());
+
+        try {
+            // simular um serviço demorado
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            // ignoring
+            throw new RuntimeException(e);
+        }
+        System.out.println("email sent");
+    }
+}
+```
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var fraudService = new FraudDetectorService();
+        var service = new KafkaService(
+                FraudDetectorService.class.getSimpleName(), // group
+                "ECOMMERCE_NEW_ORDER", // topic
+                fraudService::parse // parse function
+        );
+        service.run();
+    }
+
+    private void parse(ConsumerRecord<String, String> record) {
+        System.out.println("-----------------");
+        System.out.println("Processando new order, checking for fraud");
+        System.out.println(record.key());
+        System.out.println(record.value());
+        System.out.println(record.partition());
+        System.out.println(record.offset());
+
+        try {
+            // simular um serviço demorado
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            // ignoring
+            throw new RuntimeException(e);
+        }
+        System.out.println("Order processed");
     }
 }
 ```
