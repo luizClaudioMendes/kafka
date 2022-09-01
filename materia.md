@@ -42,6 +42,9 @@ terminado em
       - [como o kafka faz o rebalanceamento das mensagens (direcionamento)](#como-o-kafka-faz-o-rebalanceamento-das-mensagens-direcionamento)
       - [kafka-consumer-groups (kafka-consumer-groups.bat --all-groups)](#kafka-consumer-groups-kafka-consumer-groupsbat---all-groups)
       - [Client ID no consumer](#client-id-no-consumer)
+    - [Max poll e dando mais chances para auto commit](#max-poll-e-dando-mais-chances-para-auto-commit)
+      - [Poll](#poll-1)
+      - [Maximo de records consumidos](#maximo-de-records-consumidos)
     - [](#)
 
 
@@ -1732,6 +1735,99 @@ public class FraudDetectorService {
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, FraudDetectorService.class.getSimpleName());// consumer group name
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, FraudDetectorService.class.getSimpleName() + "_" + UUID.randomUUID().toString()); // ID unico de cada instancia
+        return properties;
+    }
+}
+```
+
+### Max poll e dando mais chances para auto commit
+A gente viu que quando eu estava rodando, ele decidiu rebalancear e isso fez com que, como ele rebalanceou e eu ainda estava rodando coisas aqui, relativas às mensagens que eu tinha consumindo, na hora que eu tentei notificar: “Olha, eu já consumi as mensagens que você me enviou”, ele falou: “Não, não, não, eu estou todo mudado, eu não estou que nem você estava esperando”.
+
+E aí, eu não consegui “comitar” as mensagens, então a gente reparou que quando a gente foi lá na situação do consumer group, ele falou: “Está rebalanceando”.
+
+Então, se a gente rodar o consumer group agora e der stop nos programas ele falou: “O fraud detector service não tem ninguém rodando”, é verdade, não tem ninguém rodando, se a gente for lá no log, a gente vai ver que o fraud detector service agora está vazio, não tem ninguém consumindo.
+
+No Kafka também não tem mensagem... aquele era o Kafka, desculpa e no zookeeper, a gente vai tendo as mensagens de sempre, vai rodando lá. Então, o que que está faltando agora eu fazer?
+
+repara que eu queria diminuir esse tempo do commit, eu queria de tempo em tempo avisar: “Tudo bem, já processei essas mensagens, porque se eu for processar aqui 100 mensagens, vai demorar e nesse meio tempo, alguma coisa pode acontecer, então eu gostaria de que esse commit fosse feito mais rápido, fosse feito... na hora que eu pego as mensagens, eu já queria mais rapidamente avisar: já consumi”.
+
+#### Poll
+**O poll é um instante onde acontece um commit**, é verdade, existem outros instantes onde acontece o commit, outras configurações que a gente vai ver mais para frente na medida que a gente avança na arquitetura do Kafka, no conjunto de serviços que a gente cria.
+
+Nesse instante, o que eu gostaria de fazer era **acessar o poll mais frequentemente**, para que o rebelence, o rebalanceamento não influenciasse tanto esse consumo duas vezes da mesma mensagem.
+
+#### Maximo de records consumidos
+Então, o que eu queria fazer é adicionar uma outra propriedade, eu queria falar que nas configurações do meu cliente, o máximo de records que eu quero consumir por vez, no máximo 1.
+
+De um em um, eu vou “auto-comitando”, eu vou dizendo: “Beleza, já terminei esse, já terminei aquele”, e etc., então eu quero no máximo de um em um. 
+
+É uma configuração que muita gente usa, empresas grandes utilizam também, fazer o poll de um em um.
+
+É claro, quanto maior é o poll que você faz, no máximo você vai receber aquele número de mensagens, então você pode fazer um transporte de banda meio que otimizado: “Envia várias, depois não faz nada”, aqui você vai ter de uma e uma, mas você tem chances maiores de ter menos conflitos, é isso que a gente está fazendo, é uma escolha.
+
+Então, o que que eu vou fazer? 
+
+Rodar o processo de sempre, a gente roda o fraud detector service 1, então vou rodar também o fraud detector service normal, assim a gente tem dois dele rodando e o primeiro já começou a consumir.
+
+Opa, falou: “Vai ter um rebelence acontecendo”, falou: “Vai rolar um rebalence”, vamos dar uma olhadinha lá no consumer group? 
+
+A gente vai conseguir ver, consumer groups, vamos ver como é que está o nosso grupo fraud detector service.
+
+Ele tem os IDs já, que a gente gerou, o fraud detector service, esse aqui, o 066 e o 5b1, já tem dois diferentes, são os dois rodando, um está responsável por esses dois e outro responsável por esse, por essa partição.
+
+Nessa partição aqui está tudo parado, não tem nada acontecendo, então só tem coisa acontecendo aqui, nesse está faltando 25, nesse está faltando 34, está faltando aqui 34 e 25, que são as colunas LAG, o quão atrasado a gente está.
+
+Então, se a gente rodar agora de novo, ele foi consumindo de uma em uma, 25 e 27, então agora, a medida que ele for consumindo de uma em uma, foi dando a oportunidade de commits menores, commits menores, o commit chegou e eu estou feliz.
+
+Então de tempo em tempo, ele está dando essa oportunidade desse commit. É claro, ele pode decidir daqui a pouco, por algum motivo, de fazer um novo rebalanceamento, diversos motivos podem (triguiar) um rebalanceamento.
+
+E aí, ele começaria consumindo os dois caras de novo, se desse a sorte de um pegar esse, o outro aquele e etc., tem motivos aí, a gente viu como a gente pode gerar um rebalanceamento, por exemplo, reparticionando.
+
+Então, essa é uma maneira de a gente configurar o máximo de records que a gente quer e super utilizado, para que a gente tenha mais oportunidades de não duplicar mensagens, de não executar duas vezes a mesma mensagem, porque falhou o commit.
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var consumer = new KafkaConsumer<String, String>(properties());
+
+        consumer.subscribe(Collections.singletonList("ECOMMERCE_NEW_ORDER")); // inscriçao nos topicos ouvidos
+
+        while (true) { // fica chamando o kafka para procurar mensagens
+
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    System.out.println("-----------------");
+                    System.out.println("Processando new order, checking for fraud");
+                    System.out.println(record.key());
+                    System.out.println(record.value());
+                    System.out.println(record.partition());
+                    System.out.println(record.offset());
+
+                    try {
+                        // simular um serviço demorado
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        // ignoring
+                        throw new RuntimeException(e);
+                    }
+                    System.out.println("Order processed");
+                }
+            }
+        }
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, FraudDetectorService.class.getSimpleName());// consumer group name
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, FraudDetectorService.class.getSimpleName() + "_" + UUID.randomUUID().toString()); // ID unico de cada instancia
+        properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1");// quantidade max de records recebidos no poll
         return properties;
     }
 }
