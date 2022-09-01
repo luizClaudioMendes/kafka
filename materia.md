@@ -52,6 +52,8 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-2)
   - [Serializaçao customizada](#serializaçao-customizada)
     - [Diretórios do Kafka e Zookeeper](#diretórios-do-kafka-e-zookeeper)
+    - [Serialização com GSON](#serialização-com-gson)
+    - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -2360,3 +2362,262 @@ Então, eu estou agora com o Kafka, com o diretório fixo, trabalhando mais boni
 
 O que eu gostaria de fazer era parar de usar string para tudo que é lado. 
 
+### Serialização com GSON
+Por enquanto, a gente está utilizando string em tudo que é lado, eu gostaria, que eu tivesse um pedido de compra, uma ordem que está sendo enviada de um lado para o outro, eu gostaria de uma order, de verdade.
+
+Então, quer dizer que quando eu estou enviando, NewOrderMain, eu gostaria de despachar uma order de verdade, então o Kafka dispatcher não vai despachar mais um valor que é uma string, mas sim um order.
+
+Mas calma aí, não vai despachar sempre um order, porque, por exemplo, por e-mail vai ser uma string, então quer dizer, vai depender de acordo com o dispatcher que você precisa. 
+
+Então, eu queria trabalhar agora com serialização, mas para trabalhar com serialização, eu precisava que o meu Kafka dispatcher fosse customizado de acordo com o tipo.
+
+Então cada linguagem vai ter uma maneira de trabalhar com isso, no Java isso é chamado generics, então o Kafka dispatcher, ele vai ser do tipo “T”, “T” de tipo, é a letra que costuma ser usada. 
+
+Então no new order main, quando a gente cria um Kafka dispatcher, eu vou falar que o meu Kafka dispatcher é de uma order.
+
+Eu vou ter que criar a order, o que que a classe order vai ter? 
+
+Vamos var uma olhadinha aqui, tem que ter três valores, o ID do usuário, o ID da compra e o valor, por exemplo, são esses três dados.
+
+Então vou colocar aqui os três dados no private final string userId, orderId, por fim, além do usuário e da compra, do ID da compra, eu preciso do valor, do valor total, do amount, Vamos usar o BigDecimal, que no Java tem uma representação com ponto flutuante e a gente consegue ter mais precisão nas casas decimais, gerar um construtor que recebe tudo, já que tudo é obrigatório. 
+
+Então essa é a minha classe order, recebe... eu tenho que criar uma order aqui.
+
+Então, invés de criar um value aqui, eu vou criar aqui a minha order, que é uma nova order e a order recebe o quê mesmo? 
+
+O userId, o orderId e o amount. 
+
+O userId é esse aqui e o orderId? 
+
+Vamos criar um outro ID, o orderId é o outro ID e o amount?
+
+O amount seria um número aleatório, um Math.random, pode ser um random, então um número aleatório, só que o random é um número entre 0 e 1, se ele é entre 0 e 1, vamos fazer ele entre 0 e 5.000, mas eu quero que ele seja pelo menos um real, então pelo menos um real.
+
+Então esse daqui é o meu valor, o meu valor está aqui, só um cuidado, porque o amount, ele é o que agora? 
+
+Ele é um double, porque o math.random devolve um double. 
+
+Então, eu quero transformar o double num BigDecimal.
+
+Então, no BigDecimal, quando a gente instancia ele, eu passo ele... o amount como parâmetro, então eu vou colocar tudo isso aqui dentro, new BigDecimal, então eu criei aqui um valor aleatório como amount, eu posso tirar isso daqui e eu tenho tudo o que eu queria.
+
+Claro, o userId vem aqui, que são strings, estou feliz, não tenho preocupação, mas aqui a minha order, eu vou enviar a minha order e aí, não funciona, por quê? 
+
+Porque o método send requer um “T”.
+
+Se “T” for string, envia string, se “T” é order, envia order e por aí vai. 
+
+Então esse é o generics do Java, é isso que a gente está usando pelo menos para enviar, para receber vai precisar de mais um detalhe, em qualquer linguagem você vai ter um análogo a isso.
+
+Então, essa é a parte de programação de linguagem e de modelo, como que a gente modela, eu vou enviar mensagens que tenham as informações que eu preciso, bem estruturadas e agora a gente está fazendo isso.
+
+o producer é de string, string mesmo? 
+
+Tanto que está dando erro aqui, o send, o record, não está dando certo, por quê?
+
+Porque ele está esperando um producer record de string, string, mas ele recebeu um producer record de string e “T”, por que, então? 
+
+Porque o producer também tem que ser um produtor de chave string, valor “T”. Então agora, ele consegue enviar aqui, send, ele consegue enviar.
+
+“Guilherme, o dispatcher do e-mail não está funcionando mais”, não está, por quê?
+
+Porque o e-mail, como que a gente está fazendo por enquanto?
+
+O e-mail recebe string ou recebe pedido? 
+
+O e-mail é string, então enquanto essa mensagem, a gente espera que receba uma order, essa mensagem, a gente espera que receba uma string, então não pode ser mais o mesmo dispatcher, tem que ser dois dispatcher diferentes, um para order e um para string, eu teria que ter dois dispatchers distintos.
+
+E não tem o que fazer, agora eu vou precisar de dois dispatcher mesmo, não vou ter como fugir disso, tem maneiras, vou da maneira mais simples mesmo, que é um dispatcher... um é o dispatcher de order, que é um order dispatcher e o outro é o e-mail dispatcher, para mim, eu vou deixar isso bem claro.
+
+Um é o e-mail dispatcher e o outro é o order dispatcher, formato tudo bonitinho, então eu tenho o order e o e-mail dispatcher, esse é o order dispatcher, esse é o e-mail dispatcher, só o cuidado que o e-mail dispatcher despacha e-mail. 
+
+Posso tentar rodar, só o new order main, mesmo que não tenha ninguém escutando, só quero verificar que o envio está funcionando, se eu estou falando desse jeito, é porque a gente pode esperar que ele não vá funcionar.
+
+Então, bom, alguma coisa deu de errado. 
+
+Primeiro, ele falou: “StringSerializer”, deu erro na serialização, ele falou: “A classe order não pode ser convertida para string”, mas você fala: “Mas, Guilherme, eu estou mandando um order, eu não estou mandando string”.
+
+Sim, mas o Kafka não sabe transformar order em string, a gente tem que ensinar, porque no final o Kafka quer transformar o seu objeto, a sua mensagem em bytes e ele sabe fazer isso através do string serializer, olha aqui, a gente falou para ele usar o string serializer, então ele sabe transformar string em bytes, mas ele não sabe transformar order em bytes.
+
+Então, a gente precisa falar qual o serializador que a gente quer usar, a gente não quer mais usar o string serializer, a gente que usar um serializador que serializa para algum formato, é muito comum que se utilize um formato humanamente, razoavelmente legível, então é comum usar Json, você poderia usar outros formatos, claro.
+
+Então, existe uma biblioteca que transforma coisas em Json, que é a Gson, então a gente pode ir no nosso pom, aqui no pom, a gente pode adicionar uma nova dependência.
+
+Qual é a dependência que eu quero adicionar? 
+
+Maven repository Gson, “G” de Google, Gson. O Gson, na versão 2.8.6.
+
+Então ele já vai baixar, quando terminar de baixar, esse vermelho vai virar branquinho para dizer: “Baixei”. 
+
+Eu vou ter que falar para ele que olha, para serializar o valor, eu vou usar o meu Gson serializer.
+
+Aí, você fala: “Guilherme, não existe”, não existe mesmo, a gente tem que criar, o Gson existe, ele serializa, mas ele serializa através de uma classe chamada “GsonBuilder.create”, isso daqui devolve para mim, para a gente um Gson, que é um serializador, esse daqui é um serializador.
+
+Esse serializador aqui, ele não funciona para o Kafka, no Kafka, a gente tem que implementar a interface serializer do Kafka, serializer do que? 
+
+De qualquer coisa, o serializer que a gente implementa, tem que ser serializer de qualquer coisa.
+
+Então, vou importar o serializer do Kafka e agora sim, eu estou trabalhando com uma questão do Kafka código, não mais Kafka arquitetura, questão de mensagem, não mais Java, questão de generics, que todas as linguagens vão ter de sua maneira.
+
+Então agora, eu tenho de serializar, eu tenho que serializar de uma string, para um “T”. 
+
+Para me virar com isso daí, vamos aqui no serializer, a gente tem o byte serializer, é isso que vou ter que implementar.
+
+Então, para serializar, o que que eu falo? 
+
+Eu falo: “Gson, serializa aí para mim, para Json, toJson, esse objeto aqui”, esse daqui é o “T”, então: “Serializa para mim esse objeto”, então ele serializa, só que isso daqui devolve uma string e aí, eu transformo em bytes, eu transformo a string em bytes.
+
+Então esse é o serializer. 
+
+Tem outros métodos que a gente pode... isso dá override, implementar? 
+
+Tem, tem um de configuração, tem um de fechamento, então tem vários que a gente pode implementar, tem vários que a gente pode implementar aqui, por que que a gente não implementa?
+
+Porque ele já tem um padrão que não faz nada, a gente não ia fazer nada mesmo, então tudo bem, eu não tenho problema com isso. 
+
+Então, a serialização padrão é simplesmente transformar em string e acabou, eu estou feliz com isso, não estou preocupado com isso daí.
+
+Então, o que que eu quero fazer agora? 
+
+Então isso daqui vai usar esse serializador, vamos ver se agora vai funcionar? 
+
+Se ele consegue mandar as duas mensagens? 
+
+Vou rodar de novo e vamos ver se ele vai serializar esse daqui e serializar esse outro.
+
+Alguma coisa ele fez, ele está falando: “Sucesso, enviando”, enviou várias mensagens, seria legal a gente ver a mensagem. 
+
+Então o nosso send faz isso, como é que eu posso ver as mensagens que estão sendo enviadas?
+
+Já serializadas. 
+
+Para elas chegarem serializadas no nosso (lado), a gente precisava de alguma maneira ver tudo o que está sendo enviado, independente do que seja, a gente quer ver o que está sendo enviado. 
+
+Isso é meio que um tipo de um log, eu queria ver um log.
+
+Então, se eu quero ver um log, a gente tem que fazer o log desse serializer, a gente tem que fazer o log service. 
+
+Lembra do log service? 
+
+Só que o log service ainda está da maneira antiga. 
+
+Então, agora que a gente é capaz de enviar serializado com o Json, apesar de a gente não ver ela, eu queria ser capaz agora de deserializar.
+
+Primeiro como string mesmo, só para ver que funcionou e depois a gente desserializa para um pedido, é isso que a gente vai fazer daqui a pouquinho.
+
+NewOrderMain.java
+```
+public class NewOrderMain {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        try(var orderDispatcher = new KafkaDispatcher<Order>()) {
+            try(var emailDispatcher = new KafkaDispatcher<String>()) {
+                for (int i = 0; i < 10; i++) {
+                    var userId = UUID.randomUUID().toString();
+                    var orderId = UUID.randomUUID().toString();
+                    var amount = new BigDecimal(Math.random() * 5000 + 1);
+
+                    var order = new Order(userId, orderId, amount);
+                    orderDispatcher.send("ECOMMERCE_NEW_ORDER", userId, order);
+
+                    var email = "thank you for your order! we are processing your order!";
+                    emailDispatcher.send("ECOMMERCE_SEND_EMAIL", userId, email);
+                }
+            }
+        }
+    }
+}
+```
+
+Order.java
+```
+public class Order {
+
+    private final String userId, orderId;
+    private final BigDecimal amount;
+
+    public Order(String userId, String orderId, BigDecimal amount) {
+        this.userId = userId;
+        this.orderId = orderId;
+        this.amount = amount;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public String getOrderId() {
+        return orderId;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+}
+```
+
+KafkaDispatcher.java
+```
+public class KafkaDispatcher<T> implements Closeable {
+
+    private final KafkaProducer<String, T> producer;
+
+    KafkaDispatcher() {
+        this.producer = new KafkaProducer<>(properties());
+    }
+
+    private static Properties properties() {
+        var properties = new Properties();
+        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092"); // ip e porta do kafka
+        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); // nome da classe de deserializaçao da chave
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, GsonSerializer.class.getName()); // nome da classe de deserializaçao da mensagem
+        return properties;
+    }
+
+    public void send(String topic, String key, T value) throws ExecutionException, InterruptedException {
+        var record = new ProducerRecord<>(topic, key, value); // parametros: topico, chave, mensagem
+
+        Callback callback = (data, ex) -> {
+            if (ex != null) {
+                ex.printStackTrace();
+                return;
+            }
+            System.out.println("sucesso enviando nesse topico: " + data.topic() + "::: partition " + data.partition() + "/ offset" + data.offset() + "/ timestamp" + data.timestamp());
+        };
+
+        producer.send(record, callback).get(); // envia a mensagem sincrona com callback (lambda)
+    }
+
+    @Override
+    public void close() {
+        producer.close();
+    }
+}
+```
+
+GsonSerializer.java
+```
+public class GsonSerializer<T> implements Serializer<T> {
+
+    private final Gson gson = new GsonBuilder().create();
+
+    @Override
+    public byte[] serialize(String s, T object) {
+        return gson.toJson(object).getBytes();
+    }
+}
+```
+
+pom.xml
+```
+....
+ <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
+<dependency>
+    <groupId>com.google.code.gson</groupId>
+    <artifactId>gson</artifactId>
+    <version>2.9.1</version>
+</dependency>
+....
+        ```
+
+### 
