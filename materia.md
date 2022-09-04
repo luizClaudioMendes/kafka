@@ -53,6 +53,7 @@ terminado em
   - [Serializaçao customizada](#serializaçao-customizada)
     - [Diretórios do Kafka e Zookeeper](#diretórios-do-kafka-e-zookeeper)
     - [Serialização com GSON](#serialização-com-gson)
+    - [Migrando o log](#migrando-o-log)
     - [](#)
 
 
@@ -2618,6 +2619,113 @@ pom.xml
     <version>2.9.1</version>
 </dependency>
 ....
-        ```
+```
+
+### Migrando o log
+O nosso próximo passo é migrar o código do log service para aquela versão nova, aquela versão que invés de usar Kafka consumer, usa o nosso Kafka service.
+
+Quero criar um Kafka service direto, então ele vai funcionar que nem os outros serviços, quem nem, por exemplo, o e-mail service.
+
+Aí, a gente cria um Kafka service, através de um try e depois da um run.
+
+Criei o Kafka service, eu passo o meu log service.parse, eu falo quais são os tópicos que eu quero escutar, e-commerce qualquer coisa, eu falo o nome do meu log service, o nome do meu grupo, consumer group, o consumer group é o log service.
+
+E aí, é só eu consumir. 
+
+Dessa maneira, então eu posso apagar todo esse resto e implementar o parse aqui, vai receber um record, para cada record, aqui, eu já estou aqui dentro.
+
+Já tenho o topic aqui, value e tudo mais sendo impresso. 
+
+Então, isso daqui é o que deveria funcionar, só tem um detalhe, o log usa uma regex.
+
+Então, o que que a gente tem que fazer? 
+
+A gente tem que mudar um pouquinho, ao invés de receber uma string topic, eu tenho que falar: “Esse daqui específico, ele é um pattern regex.
+
+Então, a gente vai ter que criar um outro construtor, a gente precisa de dois construtores, a gente precisa desse primeiro que recebe um topic como string e a gente precisa desse segundo que recebe um topic com um pattern, como pattern, o que que ele tem que fazer mesmo?
+
+Ele tem que, invés de setar o subscribe essa forma, ele seta outro subscribe, ele fala: “Subscribe esse tópico, esse pattern”, então a única diferença é essa, “Ah, essas duas linha são iguais, posso jogar num construtor e num construtor?”, posso, poderia jogar aqui no construtor, mas não é um Extract Method.
+
+aqui eu vou querer o groupId e o parse, então eu vou falar: this, parse, groupId, ele vai criar para a gente esse construtor, esse construtor é privado e chamar simplesmente de this parse groupId.
+
+Então, se você quisesse evitar aquela “linha copy, paste”, eu posso fazer isso, então eu tenho dois construtores que eu posso utilizar e tenho um privado que não dá subscribe em nada, que não faz nada, só inicializa os dois campos. 
+
+Então, eu estou sempre (inicializando), num eu estou num tópico fixo, no outro eu estou num pattern.
+
+Então aqui eu tenho esse cara, posso querer escutar, vou rodar ele. 
+
+Está escutando, olha, new order e send e-mail, está escutando os dois. 
+
+Lembra, você fala: “Ah, Guilherme, mas ele já deveria ter offset aí, né?”
+
+Sim, ele já pulou o offset, por quê? 
+
+Porque o group consumer, o consumer group não existia quando a gente enviou as mensagens, o consumer group log service não existia ainda, então ele começou do último. 
+
+Vou tentar rodar aqui, vamos gerar 10 mensagens, 20 no total, 10 de e-mail e 10 de orders e vemos no log agora e aqui eu tenho o log.
+
+Encontrei um registro, olha o registro dele aqui, olha isso aqui, é um Json, é um Json serializado, bonitinho para a gente com o BigDecimal, com 200 casas decimais, não é o nosso foco, não tem problema.
+
+O e-mail bonitinho, olha, quando é só uma string, o Json é só uma string mesmo, então não tem problema, poderia ser só uma string e aqui a gente tem o Json de novo de um objeto, aqui é uma string, aqui um objeto, aqui uma string e por aí, vai.
+
+Então, realmente a serialização funcionou e a gente migrar o log service também funcionou, por quê? 
+
+Porque a gente está recebendo como string. 
+
+No final, a msg é uma string, a gente está usando ela como uma string, porque a gente está pegando todo o nosso objeto, transformando uma string, que é um Json e transformando isso em bytes.
+
+String em bytes, o string deserializer consegue fazer, então o log service, mesmo ele utilizando o string deserializer, mesmo ele usando o string deserializer, ele consegue recuperar esse string. A questão é: no log, a gente quer um string deserializer, só o log mesmo.
+
+Mas no fraud service, aí, a coisa muda, porque no fraud detector service, eu não quero trabalhar como uma string, eu quero trabalhar com a order, então eu não quero desserializar para string, eu quero desserializar para order.
+
+Então o nosso próximo passo, agora que a gente já é capaz de ver a mensagem intermediária, é desserializar ela.
+
+LogService.java
+```
+public class LogService {
+    public static void main(String[] args) {
+        var logService = new LogService();
+        try (var service = new KafkaService(
+                LogService.class.getSimpleName(),
+                Pattern.compile("ECOMMERCE.*"),
+                logService::parse)) {
+            service.run();
+        }
+    }
+
+    private void parse(ConsumerRecord<String, String> record) {
+            System.out.println("-----------------");
+            System.out.println("LOG");
+            System.out.println(record.topic());
+            System.out.println(record.key());
+            System.out.println(record.value());
+            System.out.println(record.partition());
+            System.out.println(record.offset());
+    }
+}
+```
+
+KafkaService.java
+```
+class KafkaService implements Closeable {
+    private final KafkaConsumer<String, String> consumer;
+    private final ConsumerFunction parse;
+
+    KafkaService(String groupID, String topic, ConsumerFunction parse) {
+        this(parse, groupID);
+        consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
+    }
+
+    KafkaService(String groupID, Pattern topic, ConsumerFunction parse) {
+        this(parse, groupID);
+        consumer.subscribe(topic); // inscriçao nos topicos por regex
+    }
+
+    private KafkaService(ConsumerFunction parse, String groupID) {
+        this.parse = parse;
+        this.consumer = new KafkaConsumer<String, String>(properties(groupID));
+    }
+...
+```
 
 ### 
