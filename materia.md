@@ -66,6 +66,9 @@ terminado em
 - [kafka: fast delegate, evoluçao e cluster de brokers](#kafka-fast-delegate-evoluçao-e-cluster-de-brokers)
   - [novos produtores e consumidores](#novos-produtores-e-consumidores)
     - [Produtores consumidores e o eager de patterns](#produtores-consumidores-e-o-eager-de-patterns)
+    - [Um serviço que acessa bancos externos](#um-serviço-que-acessa-bancos-externos)
+      - [SQLite](#sqlite)
+    - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3712,3 +3715,141 @@ Mas agora como esses tópicos já existem podemos rodar de novo o LogService e r
 Agora sim LogService vai pegar todas as mensagens dos tópicos que já existem, que são aqueles dois de ecommerce send mail e outro e do e-comerce approved e do e-commerce rejected (esse tem de esperar ocorrer aqui, de vez em quando acontece); 
 
 fizemos um consumidor que também é produtor.
+
+### Um serviço que acessa bancos externos
+Nosso próximo passo é criar um novo serviço. 
+
+Eu queria mostrar agora essa questão da independência dos projetos, tem uma certa dependência de acordo com a estrutura do esquema das mensagens que são enviadas aquele JSON enviado de um lado para o outro.
+
+Porém as nossas dependências internas ao serviço são independentes. 
+
+Vamos observar serviço novo, que vai utilizar algo a mais: um banco de dados. 
+
+Um outro serviço externo, eu quero criar um novo serviço que toda vez que vem uma mensagem de um pedido de compra novo, se o usuário é uma pessoa nova, tem um e-mail novo eu vou inserir esse usuário no banco.
+
+A maneira de fazer isso é criar um serviço que representa o banco de usuários, onde teria as informações pessoais dos usuários e eu não gostaria que todos serviços acessassem.
+
+Eu vou criar um novo módulo, Esse módulo eu vou chamar de service-users, que é onde estão os usuários. 
+
+#### SQLite
+Se eu vou utilizar uma quantidade eu preciso de banco de dados e o que vamos utilizar se chama mvnrepository sqlite.
+
+Quero a versão sqlite para o Java, então vou usar versão 3.28.0, vou adicionar a dependência no meu service users. 
+
+Posso ir no service users e dentro dele criar uma classe que vai se chamar na br.com.alura.ecommerce, um create user service, um serviço que cria usuários.
+
+Então ele é um cliente user service um serviço que cria usuários, então ele é CreateUserService assim como fraude detector service, ele escuta a mensagem de nova ordem de compra. 
+
+A classe do nosso serviço é o CreateUserService, aqui é o consumer group. 
+
+Ele vai consumir uma order.
+
+Só vou criar isso no meu banco, processing new order, checking for fraud new user, verificando se é um novo usuário; eu vou imprimir aqui o valor e mais nada.
+
+tenho a order e agora faz alguma coisa com essa order. 
+
+temos o nosso código do CreateUserService, só preciso acessar o banco e fazer alguma coisa.
+
+Agora é a hora em que usamos na nossa biblioteca o acesso ao banco, eu quero criar agora vocês é um serviço que utiliza banco de dados, utiliza um serviço externo – poderia ser enviar e-mail, enviar push notifications, salvar arquivo em disco, seja lá o que for faz algum serviço externo. 
+
+No meu caso banco de dados externo.
+
+Vou que eu fazer vou criar uma conexão com o banco, vou assumir que esse serviço apenas roda uma única vez e vai implementar dessa maneira Tudo bem então de uma maneira. 
+
+Os outros serviços dá para rodar quantas vezes quiser. 
+
+No meu caso com banco de dados se você tivesse rodando outras linguagens remoto, poderia rodar quantas vezes quiser, deixar vários paralelos.
+
+No meu caso eu vou rodar uma sqlite que vai salvar um arquivo em disco que eu só vou ter uma instância rodando, no nosso CreateUserService construtor eu vou querer abrir a conexão com ele, então String url – uma url de conexão com o banco, jdbc:sqlite:users_database.db (ele cria esse arquivo users_database.db).
+
+Vou criar a conexão this.conection =DriverManager.getConnection(url). Você poderia usar ferramenta de outra linguagem, tudo bem, grava no banco. 
+
+Estou usando jdbc porque quero ir direto ao ponto.
+
+O foco não é o banco de dados avançado, nossa questão é serviço do consumidor e serviço que acessa serviços externos e etc. 
+
+GetConnection, maravilha, tudo certinho, pode jogar exception.
+
+Quero criar tabela, para isso connection.creatStatement de uma maneira mais simples, como não vai ter concatenação de string e executo-o. 
+
+Tenho no statement create table Users que vai ter o primeiro campo uuid varchar no campo de texto, vou colocar até 200 caracteres, poderia colocar fixo etc. que é uma chave primária, primary key.
+
+Tenho também o campo que é o e-mail da pessoa vou verificar se o e-mail já existe. 
+
+Que também vai ser um varchar e eu também vou forçar com 200, esse meu create que eu gostaria de executar; 
+
+tem de tomar **cuidado porque esse create se a tabela já existe eu quero ignorar, a primeira ele cria a segunda tem de tomar cuidado**.
+
+Vou deixar dessa maneira primeiro, a segunda vez que rodar vemos o problema acontecer. 
+
+Vou jogar a exception que tem aqui, add exception to method signature. 
+
+Se eu rodar esse serviço ele deveria ficar escutando e criar essa tabela.
+
+Essas duas coisas ele deveria fazer, vamos rodar, quando roda o CreateUserService ele está rodando no diretório projeto-atual/ecommerce. Se eu der Synchronize ecommerce vamos ver o arquivo users_database.db.
+
+Ele criou, caso contrário teria dado exception, teria parado, no lugar de criar nesse diretório, vou criar dentro do diretório target, para ficar melhor. Vou dar delete em users_database.db e vou rodar de novo.
+
+Vou rodar novamente, vou dar o Synchronize ecommerce, sincronizou os diretórios, se olharmos o target veremos o users_database.db, criou e criou a nossa tabela porque não deu erro. 
+
+Quando recebo uma nova mensagem, nova compra, novo order, eu quero verificar se já existe esse usuário, com esse e-mail.
+
+Então, if(exists(order.getEmail) se já existe não faço nada, mas eu quero fazer se for um ususário novo, if(isNewUser(oreder.getEmail)), se for um usuário novo com esse e-mail aconteceu algo. 
+
+Vai devolver uma string. Por enquanto não tem o e-mail.
+
+Vou ver qualquer coisa, vai ter de receber e-mail o processo de compra, é um novo usuário vou criar nova função, por padrão vou retornar que é novo usuário. 
+
+Se é um novo usuário quero inserir, então, insertNewUser(order.getEmail), quero implementar as duas funções, a primeira fazer um insert então, connection,prepareStatement, o statement que quero preparar é insert into users.
+
+Campos do user: uuid, email, são os dois campos do usuário que temos. 
+
+Faltaram os valores, values (?,?), esse é o meu statement, que eu preparei; tenho que jogar uma exception, porque pode dar erro, isso devolve para mim um statement de insert.
+
+Prefiro chamar de insert, seta um string, meu uuid e o segundo insert.setString email, falo insert executa para mim, executou usuário adicionado, sout, Ususário uuid e + email adicionado. 
+
+Operação simples eu prefiro ir por esse caminho.
+
+Aqui e-mail. 
+
+Inseri esse código, faltou uuid, vou jogar vou jogar exception e passa a ter um erro em cima, porque o KafkaService recebe ConsumerFunction - que não joga sqlException.
+
+Na prática é raro colocar throws exception, apenas nos momentos em que quer tratar qualquer tipo de exception em qualquer linguagem; esse é o momento em que eu quero. 
+
+Eu quero que quando eu recebo uma mensagem no meu KafkaService independente da mensagem quero ser capaz de recuperar e ir para outra mensagem.
+
+Então, only catches Exception because no matter which Exception I want to recover and pase the next one, quero pegar a próxima. 
+
+O problema que isNewUser, faltou comentar, verificar se é um usuário novo, aqui também quer pegar conexão connection.prepareStatement que é select vou buscar ID que é from Users where o email = ?, estou interessado em trazer um. Limite um.
+
+Esse é o meu correto. 
+
+É o meu query se existe, exists.setString a primeira é o e-mail que estou procurando, exists.execiteQuery, tenho que jogar exception do tipo SQL e devolve resultados.
+
+Existe se tem próxima linha. 
+
+Então, results.next se vai para próxima linha é porque existe, não é um usuário novo no banco. 
+
+Verifico se é novo e insiro o usuário no banco. 
+
+Isso quer dizer então que quando tem uma nova compra, envio a mensagem com a compra, a pessoa preencheu o site o aplicativo, os dados, o e-mail, dados da compra e enviou, ela gera uuid?
+
+Nem sempre. 
+
+Ela tem identificador único dela que é o e-mail, mas uuid não acontece na hora da compra, na hora de preencher o formulário, você pode fazer isso em algumas situações; mas no nosso caso, quando faz uma compra não tem uuid apenas tem o e-mail.
+
+Então agora eu tenho um problema que tem que mudar todo o esquema de comunicação de um lado para o outro, porque na verdade a order do New Order, ela tem 10 userId, orderId e amount, não! 
+
+Ela tem email, orderId e amount.
+
+Isso vai para o nosso CreateUserService, quando o create cria o usuário no banco ou busca o usuário do banco aí se sabe ID dele – se existe ou não existe. 
+
+Só vai existir uuid do usuário depois do CreateUserService se usuário é um usuário novo.
+
+Esse é um cuidado que eu tenho que tomar, só faz sentido rodar o sistema de fraude e todas as outras coisas depois de ter colocado um usuário no meu banco, é uma decisão que a gente tem que tomar, faz sentido rodar depois ou antes com as informações na mensagem o que faz sentido? 
+
+Isso é uma decisão que você tem que tomar.
+
+De acordo com a decisão que toma no nosso sistema, as mensagens estarão fazendo um caminho ou outro e é isso que faremos daqui a pouco; adaptar aos nossos esquemas para isso, mas por enquanto já tem aqui um serviço capaz de armazenar dados e buscar dados de um banco e poderia usar qualquer biblioteca de banco.
+
+### 
