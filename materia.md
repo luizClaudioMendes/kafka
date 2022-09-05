@@ -58,7 +58,10 @@ terminado em
     - [Lidando com customizações](#lidando-com-customizações)
       - [Propriedades extras de configuraçao do Kafka service, dependendo de quem a cria](#propriedades-extras-de-configuraçao-do-kafka-service-dependendo-de-quem-a-cria)
     - [O que aprendemos?](#o-que-aprendemos-3)
-  - [](#)
+  - [Microserviços e módulos](#microserviços-e-módulos)
+    - [Microsserviços como módulos em um mono repo](#microsserviços-como-módulos-em-um-mono-repo)
+      - [Criando um novo modulo no maven](#criando-um-novo-modulo-no-maven)
+    - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3266,4 +3269,152 @@ public class EmailService {
 * Deserialização customizada
 * Lidando com customização por serviço
 
-## 
+## Microserviços e módulos
+### Microsserviços como módulos em um mono repo
+Agora que a gente já tem o nosso projeto rodando, para pra pensar, cada um desses serviços, o e-mail service, fraud detector service, o log service e até mesmo um new order main, eu posso considerar como um serviço isolado, cada um desses serviços não tem nada a ver um com o outro.
+
+Existe uma coincidência de que um envia uma mensagem e outros estão “escutando” a coincidência e existe um esquema, que é uma estrutura de como a mensagem deve ser escrita para que os dois lados consigam se comunicar, mas um lado não conhece exatamente o outro.
+
+Então faz sentido esses lados estarem dentro do mesmo projeto? 
+
+Tem gente que vai argumentar que sim, tem gente que não. 
+
+Se a gente colocar tudo dentro do mesmo projetão, a gente vai estar meio que com um grande monólito, pode até ser, apesar de a gente ter quebrado em vários serviços e rodar eles isoladamente.
+
+O que que costuma ser feito? 
+
+Como cada serviço tem suas próprias dependências, as vezes você tem que cada um desses pequenos serviços, desses micro serviços tem o seu banco de dados. 
+
+Então, eu tenho o meu banco de dados, você tem o seu banco de dados, cada um com dados distintos, partes distintas das informações.
+
+Eu tenho acesso ao estoque, você tem acesso aos dados pessoais de um usuário, eu como pessoa de estoque, não quero ter acesso a dados de senha do meu usuário, porque é uma questão de segurança, não faz sentido, bancos distintos, bancos pequenos, isolados.
+
+Então, cada serviço pode ter uma infraestrutura diferente, apesar de, claro, terem dependências muito comuns, como por exemplo, o Kafka, já que a comunicação está ocorrendo via Kafka. 
+
+Então o que que é comum?
+
+Que a gente separe isso em projetos, como que eu separo isso em projetos?
+
+Usa a ferramenta que a sua linguagem tiver disponível para você, no nosso caso em Java, é bem comum usar maven, gradle ou alguma outra ferramenta e a gente submódulos, você também poderia criar projetos distintos e ponto final.
+
+A vantagem de a gente criar submódulos aqui dentro do nosso projeto, aqui a gente consegue comitar tudo isso, também poderia, mesmo sem submódulos, dentro do mesmo git, dentro do mesmo repositório.
+
+Então, se eu comito tudo dentro do mesmo repositório, todos os meus projetos, eu tenho um monorepo, que é uma abordagem, um grande um mono repo, repositório. 
+
+Então é uma abordagem que todo mundo, de todos os times tem acesso a todo código.
+
+Então, se suas questões de seguranças internas permitem isso, é uma abordagem, não necessariamente a única. 
+
+Então é isso que eu vou fazer aqui, eu vou criar um módulo novo.
+
+Você está em outra linguagem, quer programar em outra linguagem, em outro projeto, seja lá o que for, usa a ferramenta que você quiser, crie outros projetos, outros módulos, o termo que for.
+
+Repara que ele segue, no caso do maven e do gradle, ele segue o mesmo nome do parent, o groupId, a sugestão é sempre manter a mesma e o artifactld, aí sim, o artifactld, eu vou chamar de service e-mail, podia chamar de e-mail service? Podia, só que daí, cada serviço ia ficar com... meio que bagunçado, se eu tiver outros nomes.
+
+A vantagem de colocar o service aqui no começo, para mim, é que vai organizar, vai ficar todos os services juntinhos e aí, se eu tiver bibliotecas comuns, eu vou chamar de commons libraries, aí vai ficar separadinho, commons libraries e depois o services ou (common) http ou (common) Kafka, (common) não sei o quê.
+
+Então eu agrupo, fica ordenado por ordem alfabética. 
+
+Então, service e-mail e o padrão, no meu caso, é com o hífen, por causa do “e” do maven. 
+
+#### Criando um novo modulo no maven
+Então, next, deixo ele criar para mim o meu projeto, o meu submódulo, ele já criou aqui um pom separado, aqui dentro do service e-mail.
+
+E o pom do pai ou da mãe do parent, já fala: “Tem um módulo chamado service e-mail, então aqui eu tenho o meu service e-mail, por padrão, ele tem as dependências desse cara aqui, então ele já ganhou o Kafka, o slf4j e o Gson, esse é o meu service e-mail.
+
+Tem o diretório Java lá dentro, então o que que eu quero mover para lá, o e-mail service, eu quero mover o e-mail service para lá, então eu vou clicar na direita, refactor, move.
+
+Eu prefiro fazer isso do que arrastar, eu acho mais fácil o passo a passo aqui, quando eu mover de um projeto para outro, eu prefiro... o intelliJ, outras ferramentas, tem alguns problemas em algumas situações, em algumas linguagens, no move, eu prefiro fazer com super calma.
+
+Então eu quero manter o mesmo pacote, eu prefiro com a janela de diálogo com calma... manter o mesmo pacote, olha o target directory, o destino, o meu destino vai ser esse daqui, service e-mail, o diretório Java dele, então ok, refactor.
+
+Então, ele vai falar assim: “Guilherme, veja lá, o e-mail service main, não vai estar mais acessível nesse módulo”, faz sentido, o e-mail service está indo para lá, não vai estar mais aqui, vai estar ali, faz todo o sentido, pode ir. 
+
+Então, teoricamente, o e-mail service está aqui agora.
+
+Aí, você fala: “Mas ele não está encontrando o Kafka service”, por que que não está encontrando o kafka service? 
+
+Calma lá, o pom, ele adicionou as dependências que estão aqui, ele não adicionou o código que está aqui.
+
+Então, se a gente for lá no nosso e-mail service e adicionar dependência no módulo pai, então a gente quer adicionar uma dependência no módulo pai, é isso que eu quero.
+
+Adicionei a dependência, então se a gente der uma olhada agora no nosso pom, a gente vai falar: “Tem a dependência do módulo pai”, está no escopo de compilação? 
+
+Não, vai precisar no escopo de rodar mesmo, então no escopo de rodar, no caso do maven, quando eu for rodar, eu vou precisar.
+
+Está aqui, importou, eu tenho o meu e-mail service separado, num módulo separado bonitinho, controlado e ele só usa as classes que estão nele e nesse outro projeto. 
+
+Aí, você fala: “Legal, Guilherme, então a gente fez isso, mas lembra que eu posso criar então os outros módulos, dos outros serviços?
+
+Vamos criar, os outros módulos são rápidos agora, a gente vai ter um e-mail... um service de fraude, então um service fraud detector. 
+
+Hífen, fraud detector, crio sem segredo, mesma coisa, o que que eu tenho que mover para lá? O fraud detector service. Refactor, move.
+
+Então, na caixa de diálogo, por isso que eu acho que é importante, porque a gente precisa lembrar de clicar no reticencias, escolher aqui direitinho o diretório, para evitar dar alguma “cáca” aí. O refactor, ele vai sugerir o que que vai acontecer de errado, tem um errinho a mais, eu quero que a gente veja esse errinho a mais.
+
+O fraud detector está lá e olha aqui o fraud detector service. Aqui o fraud detector service, não está dependendo da classe de lá, mas o order, a gente também depende do order agora. Então, eu vou adicionar dependência.
+
+Então, agora que a gente está dependendo, trouxe tudo, você fala: “Beleza, Guilherme, trouxe tudo”. Vamos agora para o próximo? Então o próximo módulo: log service. Então, o novo módulo, repara, agora fica rápido, os módulos de serviços são rápidos de criar.
+
+Opa, service log, finish, a gente vai pegar o log service.
+
+Então no service log, vamos refatorar, continue e a gente tem o nosso service log no pacote adequado e a gente já faz a nossa dependência. 
+
+Vou fechar enquanto ele corrige. Aí, você fala: “Sobrou mais um serviço?”.
+
+Sim, serviço de new order, o serviço de new order, ele é um método main, assim como os outros serviços, então, novo módulo. 
+
+novo módulo, um service new order, ele é um método main, como os outros serviços. 
+
+E a gente vai mover pra cá, o new order, refactor, move, a new order.
+
+Vamos corrigir, aqui, ele tem várias coisas que ele depende. 
+
+Sobraram várias classes, Consumer Function, Gson deserializer, Gson serializer, Kafka dispatcher e Kafka service, cinco classes que são relativas ao Kafka, certo?
+
+São as classes comuns, bibliotecas comuns, que dão base para o nosso trabalho com o Kafka, para meio que esconder o Kafka para programadora ou programadora final. 
+
+Então, eu vou criar um novo módulo agora, um novo módulo, para separar bonitinho, vai se chamar “common”, de biblioteca comum, assim como tem o apache commons.
+
+Então, common e aí, Kafka, que são as classes que trabalham com o Kafka. 
+
+Então, o nosso common-kafka, o que que a gente vai ter lá dentro? 
+
+A gente vai ter essas várias classes, exceto a order, a order não tem nada a ver com o kafka, a order é do nosso projeto.
+
+Então vamos ver, lembra para o diretório do common-kafka, aqui refatorei. 
+
+Porque o order não depende daquilo lá, não tem problema, mas o que que acontece?
+
+Todos os outros que a gente tinha colocado dependência para esse cara aqui, na verdade dependem do common-kafka agora. 
+
+Aqui, a gente depende do common-kafka, então o que a gente pode fazer? 
+
+“Ctrl + Enter”, adicionar dependência do common-kafka.
+
+Adicionei dependência do common-kafka? 
+
+Maravilha. 
+
+Então, em cada um dos serviços, na verdade, invés de adicionar a dependência da raiz, eu vou adicionar dependência das bibliotecas que fazem sentido, então é do common-kafka. 
+
+acredito que foram todos. 
+
+Então, olha o service e-mail, o fraud detector, aqui é o commond, o log e Log service.
+
+A classe new order main, ele já está importada. 
+
+Então, agora a gente está dependendo do common-kafka, então esses projetos estão dependendo do common kafka, a gente já isolou uma biblioteca comum, que de repente é uma outra equipe, que é responsável por fazer isso, o principal no dia-a-dia.
+
+A gente até tem acesso, porque está no nosso repositório, mas os serviços estão isolados.
+
+Qual é a única coisa que é comum a esses quatro serviços, que está na raiz? 
+
+Que todos eles estão acessando, que é comum e que pode ser um perigo? 
+
+É o order.
+
+OBS:
+**ver commit para ver as alteraçoes necessarias**
+
+### 
