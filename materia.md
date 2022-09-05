@@ -68,7 +68,9 @@ terminado em
     - [Produtores consumidores e o eager de patterns](#produtores-consumidores-e-o-eager-de-patterns)
     - [Um serviço que acessa bancos externos](#um-serviço-que-acessa-bancos-externos)
       - [SQLite](#sqlite)
-    - [](#)
+    - [O que aprendemos?](#o-que-aprendemos-5)
+  - [evoluindo um serviço](#evoluindo-um-serviço)
+    - [Evoluindo serviços e schemas](#evoluindo-serviços-e-schemas)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3852,4 +3854,89 @@ Isso é uma decisão que você tem que tomar.
 
 De acordo com a decisão que toma no nosso sistema, as mensagens estarão fazendo um caminho ou outro e é isso que faremos daqui a pouco; adaptar aos nossos esquemas para isso, mas por enquanto já tem aqui um serviço capaz de armazenar dados e buscar dados de um banco e poderia usar qualquer biblioteca de banco.
 
-### 
+### O que aprendemos?
+* Como fazer um consumidor também produzir
+* Como lidar com patterns e novos topics
+* Como acessar um banco de dados
+* Problemas de schema que vão sendo levantados durante a evolução dos serviços
+
+## evoluindo um serviço
+### Evoluindo serviços e schemas
+Vimos que no momento que criou um serviço novo que se encaixa no meio do nosso processo, surgiu um problema: os esquemas e o que cada serviço está esperando receber e enviar; isso é super natural quando está trabalhando com mensagem e evolução dos nossos projetos. 
+
+Um serviço novo aparece ou evolui um projeto e tem de pensar será que ele se encaixa como receptor - recebe.
+
+Ou tem que se encaixar no meio entre dois passos; uma maneira de ver nosso problema nessa situação específica é quando recebo um pedido de compra eu devo primeiro colocar os dados do usuário no banco para depois detectar fraude; ou eu posso colocar os dados do usuário no banco e ao mesmo tempo ir analisando se é fraude.
+
+Se pensar que a mensagem tem todas as informações para detectar fraude, faz os dois em paralelo, nós precisamos na order original que é no NewOrderMain passar a receber o e-mail - a pessoa preenche o e-mail lá na tela inicial dela.
+
+Pensando como otimização dos processos e execução em paralelo, persiste. 
+
+O problema é você recebe um pedido de compra, armazena os dados do usuário no banco enquanto está processando a fraude, pode acontecer que o usuário no banco ainda não foi salvo e está processando a fraude.
+
+Por algum motivo armazenar os usuários no banco ficou lerdo ou caiu ou algo do gênero. 
+
+E a fraude foi processada e enviou um e-mail para o usuário e o usuário tenta fazer alguma coisa no nosso sistema que depende dos dados do usuário estar no banco; e acontece que os dados do usuário ainda não estão no banco.
+
+Porque processou a fraude enquanto os usuários iam ser gravados no banco, mas já enviou um e-mail falando que deu fraude, o que não deu fraude, ou seja o que for, já fez esse processo. 
+
+Veja como é delicado, tem de pesar se outros caminhos das nossas mensagens podem fazer com que o usuário tente fazer algo que não poderia fazer ainda.
+
+E pode; você tem de estar preparado em todos os nossos serviços, não só na compra na compra de um pedido, na criação de usuário, na detecção de fraude, no login do usuário, em todos os lugares para que um processo que pensou que já foi executado em paralelo foi ou não foi executado.
+
+Talvez ainda não tenha sido executado. 
+
+Por exemplo, cadastrei um produto para vender no site Marketplace, tipo MercadoLivre, Americanas, Amazon, eu posso vender, qualquer pessoa pode vender qualquer coisa basicamente. 
+
+E a pessoa entra lá e cadastra o produto, o sistema de busca –search engine, não é atualizado na hora, em paralelo, sistema externo.
+
+Armazenar um produto é uma coisa atualizar seu sistema de busca outra coisa; se eu fizer uma busca logo depois talvez eu não encontre meu produto, talvez eu precise esperar.
+
+Repara que como esse paralelismo acontece, você tem que estar com os sistemas preparados para que o nosso usuário não se surpreenda caso uma informação não esteja lá ainda. E ela não está lá ainda, porque um dos serviços ainda não foi executado.
+
+Então como vai esse caminho mais delicado mas que paraleliza mais eu queria só finalizar essa implementação. 
+
+Primeira coisa que eu quero é poder colocar aqui quando cria a order tem também um e-mail.
+
+Posso colocar por aqui, uma string e-mail, vou adicionar como último argumento Create Field, vou colocar como final, passamos a ter e-mail agora. 
+
+Você poderia gerar com geradores, ferramenta geradoras ou algo do gênero, o que você quiser. 
+
+Eu vou fazer de uma maneira bem malandrinha que é eu vou colocar aqui o e-mail da pessoa é alguma coisa aleatória @email.com.
+
+Esse aleatório pode ser qualquer coisa, math.random está valendo, e como pode ter ponto e esse tem um ponto esse e-mail está ótimo. 
+
+A partir de agora as minhas orders tem e-mail. 
+
+Meu NewOrderMain já é capaz de enviar orders com e-mail, então tem LogService, FraudDetectorService, posso limpar os dois, estão rodando, vou rodar agora e gerar 10 mensagens com e-mails. 
+
+O LogService primeiro, roda o CreateUserService gerei e estava funcionando. 
+
+Inclusive a order tem amount e o e-mail.
+
+O FraudDetectorService está recebendo a order com os campos e o e-mail está sendo ignorado, porque nosso Json desse analyser por padrão está ignorando campos que não existem no nosso modelo. Então você conseguiu literalmente, sem ter de fazer nada ou de evoluir um serviço, que tem agora o serviço NewOrder, tem agora e-mail e o outro serviço que não precisa de e-mail - o fraude service que por enquanto não precisa de e-mail está certo.
+
+Evoluímos de forma independente porque o esquema não está se preocupando com isso, tem suas vantagens e tem suas desvantagens, há livros na literatura da área sobre evolução de esquema, versionamento e várias outras coisas.
+
+Ficou tudo compatível, o que falta para terminar mesmo é o CreateUserService, que vai receber a order, agora order também precisa de um e-mail, porque o e-mail será usado. 
+
+Vamos criar aqui o e-mail e ele vai querer usar de verdade, return email.
+
+Tanto e-mail quanto uuid, user ID, então getUserId está no nosso CreateUserService, agora tenta inserir e para isso precisa uuid da pessoa, vou precisar também do e-mail.
+
+Na hora de verificar isso verifique pelo e-mail , então order,getUserId, e order.getEmail, quem está gerando user ID é quem cria compra. 
+
+Vamos rodar o CreateUserService, e dá um erro, lembra que eu tinha falado, o banco já existe, a tabela já existe, tem que colocar em cima um try catch, catch(SQLException) apenas toma muito cuidado que a exception poderia ter sido escrita errada.
+
+Be careful, the SQL could be wrong, be really careful. Não estou tomando esse cuidado, agora terei de tomar cuidado com qual exception ocorreu.
+
+Vai rodar de novo, banco já existe não tem problema, posso mandar as mensagens, eu vou mandar a mensagem ele deveria criar 10 usuários, encontrei um registro, mas está adicionando.
+
+E o que pode fazer para testar se está funcionando de verdade? 
+
+Vamos fingir que essas 10 compras toda vez que gera são do mesmo usuário. Quando eu rodar 10 compras novas como são todas do mesmo e-mail, independente do uuid, todas elas vão ser do mesmo e-mail e vamos adicionar um único usuário.
+
+Vou rodar, gerei as 20 e dá uma olhadinha no CreateUserService, tem várias que ele não está criando porque ele criou somente na primeira. 
+
+Ficou faltando um probleminha aqui do modelo que vamos atacar daqui a pouco.
+
