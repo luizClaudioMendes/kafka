@@ -55,6 +55,8 @@ terminado em
     - [Serialização com GSON](#serialização-com-gson)
     - [Migrando o log](#migrando-o-log)
     - [Deserialização customizada](#deserialização-customizada)
+    - [Lidando com customizações](#lidando-com-customizações)
+      - [Propriedades extras de configuraçao do Kafka service, dependendo de quem a cria](#propriedades-extras-de-configuraçao-do-kafka-service-dependendo-de-quem-a-cria)
     - [](#)
 
 
@@ -3069,5 +3071,189 @@ public interface ConsumerFunction<T> {
 }
 ```
 
-### 
+### Lidando com customizações
+Repara então, que o nosso problema agora é... 
 
+tem um momento em que a gente quer usar vários subjects, se a gente não sabe o que está vindo. 
+
+Lembra que eu citei, isso é raro, isso é só quando você não tem um padrão específico para a sua mensagem.
+
+Então, tem uma situação em que isso acontece que é tipo um log, tipo alguém que recebe mensagens com erro, algo do gênero, então quando isso acontece, o que que você tem que fazer?
+
+Você tem que de alguma maneira dizer: “**Eu não quero usar esse desserializador aqui, eu quero usar o meu string deserializer e não o GsonDeserializer**”. 
+
+Então tem várias maneiras de fazer isso.
+
+Na verdade, o que a gente quer fazer é que quando eu crio um Kafka service, eu queria ser capaz de passar diversas propriedades extras, para cada serviço, de repente eu quero customizar, aí tem várias maneiras de fazer isso, você pode criar um builder, etc... Não vou criar um builder, vou manter o construtor.
+
+Você poderia falar: “Ah, agora eu já quero criar um builder, porque tem mil combinações, etc.”, eu estou ainda com duas basicamente, basicamente, tem uma virgula aí, mas basicamente duas. 
+
+Se basicamente duas para mim é o suficiente, pessoalmente eu vou manter os dois construtores, acho muito melhor do que criar um builder só para isso.
+
+Então vamos lá, o que que eu vou querer fazer aqui? 
+
+Eu vou passar um outro argumento, um argumento que vai me dizer um mapa, como se fosse um properties, que vai me dizer propriedades extras de configuração do Kafka.
+
+Então existe no Java, um Map.of, qualquer linguagem, você cria como você quiser, é um mapa que você quiser de propriedades extras, consumer config, eu vou falar aqui o value de serializer, nesse caso específico, ele é o string deserializer.class.getName, é isso.
+
+Vamos importar e está ai, então eu estou passando agora configurações extras, se eu precisar mais, é só colocar uma vírgula e sair adicionando nesse mapinha, quantas configurações a mais você quiser. 
+
+Claro, o construtor, nesse instante, não suporta isso, então a gente tem que fazer o quê?
+
+#### Propriedades extras de configuraçao do Kafka service, dependendo de quem a cria
+A gente tem que mudar o construtor para receber um mapa, então o nosso construtor aqui do Kafka service vai ter que receber um mapa de string para string, que são propriedades extras. 
+
+Essas propriedades são opcionais ou obrigatórias? 
+
+O que que você vai querer, opcional ou obrigatória?
+
+Para pra perceber, dá para eu criar um mapa assim, vazio? 
+
+Um map.of? 
+
+Eu até posso criar esse map.of, o problema é o tipo, ele não vai saber direito qual tipo ele está criando, mas você pode.
+
+Então, como é fácil de criar a propriedade vazia, eu prefiro falar: “Eu quero obrigatório”, você vai me dizer quais são um mapa de string para string, que são propriedades extras, então você vai me passar isso e é claro, eu vou passar isso para as minha propriedades.
+
+Então, eu vou alterar o meu construtor aqui para receber essas propriedades, que é esse cara aqui e na hora que eu chamo o properties, eu passo essas properties também, getProperties e aí, eu passo as properties.
+
+Então, getProperties e eu recebo também um mapa de string, string que são as properties e o que que eu quero fazer? 
+
+Dado que eu tenho as minhas properties padrão aqui, tenho essas daqui, eu vou colocar umas aqui, overrideProperties, são as que eu vou sobrescrever.
+
+Então, o que eu vou fazer agora é, eu pego essas properties que eu tenho e eu falo: “Properties, coloca aí dentro tudo o que está no override”, então tudo o que você sobrescreveu, eu sobrescrevo.
+
+Então, dessa maneira, eu acabei de permitir esse tipo de configuração extra. 
+
+Agora, todos os services tem que ter isso, então no fraud detector service, precisa? 
+
+Precisa, eu falo: “Um mapa de string” e pronto.
+
+Aí, você fala: “Ah, esse mapa de string é opcional?”, é opcional aqui e ele se vira, então se você quiser um mapa vazio, new HashMap ou como eu tinha dito antes, um Map.of, vazio. 
+
+Só que se eu fizer aqui um Map.of vazio, fica assim, Map.of vazio, o que você achar que faz mais sentido, um mapa novo ou um Map.of vazio.
+
+O que você acha que fizer mais sentido a legibilidade no caso do Java, muitas linguagens você vai escrever simplesmente assim, tem linguagens que tem parâmetro padrão, então só colocam com igual padrão, lá dentro alguma coisa que faça sentido e por aí, vai.
+
+O que você achar que faz sentido, mas para mim, resolvi o meu problema, com pouquinho código, eu mantive o controle nos construtores, tenho ainda só dois construtores, está super controlado e não tenho esse problema. 
+
+Então, não tive que criar um builder que tem mil combinações, é mutável, nada nisso, só usando construtor.
+
+Então, vamos testar, tem que testar tudo. 
+
+Então, o fraud detector service está rodando, o e-mail service está rodando; o log service e ele deve usar agora o desserializer de uma string, não me importa se é Gson o que que é, eu só quero saber a string que está aí dentro, porque é só para logar.
+
+Então, se a gente rodar de novo o new order main, ele vai jogar mensagens em todos esses serviços, então com isso, a gente criou uma biblioteca, nossa, própria, que é capaz de customizar os serviços de acordo com as propriedades que a gente quer passar.
+
+Então, a gente sugere essa camada própria em qualquer linguagem que você vá criar.
+
+OBS:
+**codigo novamente executavel**
+
+LogService.java
+```
+  public static void main(String[] args) {
+        var logService = new LogService();
+        try (var service = new KafkaService(
+                LogService.class.getSimpleName(),
+                Pattern.compile("ECOMMERCE.*"),
+                logService::parse,
+                String.class,
+                Map.of(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName())
+        )) {
+            service.run();
+        }
+    }
+...
+```
+
+KafkaService.java
+```
+class KafkaService<T> implements Closeable {
+    private final KafkaConsumer<String, T> consumer;
+    private final ConsumerFunction parse;
+
+    KafkaService(String groupID, String topic, ConsumerFunction parse, Class<T> type, Map<String, String> properties) {
+        this(parse, groupID, type, properties);
+        consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
+    }
+
+    KafkaService(String groupID, Pattern topic, ConsumerFunction parse, Class<T> type, Map<String, String> properties) {
+        this(parse, groupID, type, properties);
+        consumer.subscribe(topic); // inscriçao nos topicos por regex
+    }
+
+    private KafkaService(ConsumerFunction parse, String groupID, Class<T> type, Map<String, String> properties) {
+        this.parse = parse;
+        this.consumer = new KafkaConsumer<String, T>(getProperties(type, groupID, properties));
+    }
+
+    void run() {
+        while (true) { // fica chamando o kafka para procurar mensagens
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    parse.consume(record);
+                }
+            }
+        }
+    }
+
+    private Properties getProperties(Class<T> type, String groupID, Map<String, String> overrideProperties) {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, GsonDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupID);// consumer group name
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());// client name
+        properties.setProperty(GsonDeserializer.TYPE_CONFIG, type.getName());
+
+        properties.putAll(overrideProperties);//sobrescreve as propriedades
+        return properties;
+    }
+
+    @Override
+    public void close() {
+        consumer.close();
+    }
+}
+```
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var fraudService = new FraudDetectorService();
+        try(var service = new KafkaService<Order>(
+                FraudDetectorService.class.getSimpleName(), // group
+                "ECOMMERCE_NEW_ORDER", // topic
+                fraudService::parse, // parse function
+                Order.class, // expected type of message
+                new HashMap<String, String>()//cria um mapa vazio que nao vai ter nada para override nas propriedades
+        )) {
+            service.run();
+        }
+    }
+...
+```
+
+EmailService.java
+```
+public class EmailService {
+    public static void main(String[] args) {
+        var emailService = new EmailService();
+        try (var service = new KafkaService(
+                EmailService.class.getSimpleName(),
+                "ECOMMERCE_SEND_EMAIL",
+                emailService::parse,
+                String.class,
+                Map.of()//cria um mapa vazio que nao vai sobrescrever nada nas properties
+        )) {
+            service.run();
+        }
+    }
+...
+```
+
+### 
