@@ -57,7 +57,8 @@ terminado em
     - [Deserialização customizada](#deserialização-customizada)
     - [Lidando com customizações](#lidando-com-customizações)
       - [Propriedades extras de configuraçao do Kafka service, dependendo de quem a cria](#propriedades-extras-de-configuraçao-do-kafka-service-dependendo-de-quem-a-cria)
-    - [](#)
+    - [O que aprendemos?](#o-que-aprendemos-3)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3256,4 +3257,13 @@ public class EmailService {
 ...
 ```
 
-### 
+### O que aprendemos?
+* Como limpar os diretórios de log e dados do zookeeper e kafka
+* Como utilizar diretórios não temporátios para o zookeeper e kafka
+* Como utilizar o GSON
+* Criando um serializador customizado do Kafka
+* Verificar o conteúdo exato de uma mensagem em um programa
+* Deserialização customizada
+* Lidando com customização por serviço
+
+## 
