@@ -62,6 +62,7 @@ terminado em
     - [Microsserviços como módulos em um mono repo](#microsserviços-como-módulos-em-um-mono-repo)
       - [Criando um novo modulo no maven](#criando-um-novo-modulo-no-maven)
     - [Binários dos microsserviços](#binários-dos-microsserviços)
+    - [O que aprendemos?](#o-que-aprendemos-4)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3553,5 +3554,11 @@ Então, quer dizer, se a gente está trabalhando com submódulos e um projeto co
 Claro se você quiser criar... rodar o build de só um serviço, você pode ir lá no maven ou na sua ferramenta que você utiliza e rodar só para ela, não tem problema nenhum. 
 
 Então com isso, a gente tem aí, todos os nossos JARs sendo criados e todas as bibliotecas e a gente pode fazer deploy como a gente quiser.
+
+### O que aprendemos?
+* como criar módulos
+* como manter tudo em um mono repo
+* como gerenciar dependências entre módulos
+* como gerar os binários de cada módulo
 
 
