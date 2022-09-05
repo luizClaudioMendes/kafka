@@ -54,6 +54,7 @@ terminado em
     - [Diretórios do Kafka e Zookeeper](#diretórios-do-kafka-e-zookeeper)
     - [Serialização com GSON](#serialização-com-gson)
     - [Migrando o log](#migrando-o-log)
+    - [Deserialização customizada](#deserialização-customizada)
     - [](#)
 
 
@@ -2728,4 +2729,345 @@ class KafkaService implements Closeable {
 ...
 ```
 
+### Deserialização customizada
+Chegou a hora de a gente fazer a desserialização e a desserialização vai ter o mesmo problema em qualquer linguagem, em qualquer ferramenta que a gente esteja utilizando, que é a seguinte, eu tenho o fraud detector service e estou criando um Kafka service.
+
+Quando eu **crio o meu Kafka service**, **eu vou falar de que tipo que ele é**, **que tipo que eu pretendo desserializar**, então é a mesma coisa que o producer, a gente tem que falar: “**Eu quero desserializar uma order, eu não quero desserializar qualquer coisa**”.
+
+Então quer dizer que o Kafka service, tem que ter um “T” para ser capaz de desserializar isso. 
+
+Isso quer dizer que quando a gente roda e pega o record, o record, que a gente está dando um poll desse Kafka consumer, ele não é mais de string para string, antes ele era de string para string, chave string, valor string.
+
+Não, agora ele é chave string e **tipo “T”**, repara, o Kafka service passa a reclamar aqui em baixo, por quê? 
+
+Porque o parse consume é <string, string>, então a função de consumo agora é de chave string e tipo “T”, a gente tem que ir fazendo com que tudo seja capaz de trabalhar com qualquer tipo.
+
+Então, em qualquer linguagem a gente vai ter o problema do (gênero) e alguma solução. 
+
+Na hora que eu tentar desserializar, qual desserializador que ele vai utilizar? 
+
+Ele vai utilizar o string deserializer...
+
+Eu quero usar o Gson desserializar, que a gente vai ter que criar da mesma maneira que a gente criou o serializer. 
+
+Então, vamos criar o nosso deserializer, como é que funciona o deserializer? 
+
+Mesma coisa, vamos precisar de uma instância do Gson.
+
+Implementar deserializer do tipo “T”, do Kafka. 
+
+No deserializer, o que que a gente quer fazer? 
+
+A gente quer falar: “Recebi os bytes”, então eu vou falar: “Gson, desserializa para mim aí, baseado no Gson aqui, .fromJson e aí, eu vou falar o Json, os bytes, mas não funcionam, por quê?
+
+Porque quando você desserializa, você precisa saber qual é o tipo que você vai desserializar, se está desserializando uma string, você está desserializando um order? 
+
+Desserializando o quê? 
+
+Existem bibliotecas (extreme), etc., que tenta inferir isso dos dados da mensagem.
+
+Existem vantagens e existem desvantagens, o Gson não tenta inferir isso, então o que que a gente tem que fazer? 
+
+Passar par ele o tipo, uma class. 
+
+Só que “T” não é um class, “T” é uma coisa em tempo de compilação, não é em tempo de execução, que a gente passa como parâmetro.
+
+Eu vou ter que passar aqui a classe, em geral, a classe é **class**, que **é uma palavra chave**, se usa **clazz** ou você usa **type**, porque type é uma maneira mais genérica de dizer: qualquer tipo, poderia ser um menu, uma classe, uma interface, seja lá o que for.
+
+Então eu vou usar um type, qual que é o type?
+
+Não sei, como é que eu descubro qual que é o type? 
+
+Vamos fazer assim, quando você cria Gson deserializer, você passa o tipo para ele, mas calma aí, a gente não criou o Gson serializer, a gente só passou o nome da classe.
+
+Então, para isso, existe a função, o método **configure**, que a gente pode dar override e o que que a gente pode fazer aqui? 
+
+Aqui a gente recebe as configurações do nosso Kafka, essas configurações aqui.
+
+Então o que a gente pode fazer é... falar assim: 
+
+Nas configuração do meu serviço, vai ter uma propriedade: GsonDeserializer e aí, eu crio aqui uma constante, para a gente ter uma variável de configuração.
+
+Eu posso falar que essa daqui seja o type config, é o tipo que a gente vai utilizar. 
+
+Então o meu type config, vai ser o quê? 
+
+Vai ser por padrão string.
+
+Então o meu type config, é só eu criar uma instância num valor qualquer, eu vou colocar "br.com.alura.ecommerce.type_config", uma string qualquer e aí, o que eu vou fazer é, aqui eu passei, o string.class. 
+
+Aí, você fala: “Ah, tem que ser string, porque é properties”, então “.getName”.
+
+Essa daqui é a classe que eu quero, aí o que que eu faço agora? 
+
+No meu deserializer aqui, eu tenho esse meu valor, no meu deserializer, eu tenho o momento do configuração. 
+
+Então, eu posso falar: “Configurações, me dá para mim esse type config”, ele vai devolver para a gente qual?
+
+O nome do tipo, o type name. 
+
+Aí, eu preciso pregar esse type name, que na verdade, dentro do config, repara o que que ele é um ponto de interrogação, então a gente precisa transformar isso numa string.
+
+A gente pode chamar o to.string, só que ele tem o problema do nulo, e para evitar o problema do nulo, eu vou chamar um **valueOf**. 
+
+Então, o que é que o (object) valueOf faz? 
+
+Se for nulo, ele devolve nulo, senão ele devolve o obj.string.
+
+Então eu tenho o type, eu vou transformar isso numa classe, **class.forName**, typeName e o forName é o meu type, só um cuidado, tem que colocar try/catch, porque a classe pode não existir, você pode ter passado uma classe errada.
+
+Se você passou uma classe errada, eu quero que de erro, eu não quero que dê certo, nesse caso, eu vou jogar um exception, para que dê um erro mesmo. 
+
+Então é type for deserialization does not exist in the classpath, ele não existe no classpath.
+
+Então é só eu armazenar isso daqui como uma variável membro, como um membro, variável membro aqui, class type e aí, utilizar esse type aqui.
+
+Se eu utilizar o type aqui, ele vai devolver para mim o que eu quero, só tenham cuidado, ele tem que ser um type do tipo “T”, então o que que eu tenho que fazer? 
+
+Eu coloco aqui do tipo “T”, quando eu coloco do tipo “T” aqui, eu tenho que forçar goela abaixo, fingindo que essa classe, eu sei que ela é do tipo “T”.
+
+Então aqui, eu sei que ela é do tipo “T”, o que faltou é, eu tenho esses bytes, eu só preciso transformar eles em string, então transformo eles em string. 
+
+Você poderia falar um encoding, tanto na desserialização, quanto na serialização.
+
+O encoding poderia ser um parâmetro, o UTF8, etc., tudo isso você pode trabalhar a partir daqui, mas esse é o processo de desserialização, a gente sempre vai ter esses problemas independente de linguagem, só resta saber para qual tipo a gente que desserializar e escolher um tipo padrão.
+
+Por padrão, a gente está desserializando então para a string, vamos testar? 
+
+Como é que a gente testa? 
+
+“Stopa” tudo e roda o log, o log está usando o service e o log está interessado em string mesmo. 
+
+vamos ver se o log funciona.
+
+Eu tenho aqui o cara que envia, o new order main e eu rodo. 
+
+Deu um erro aqui, vamos dar uma olhada o que que foi, expected uma string, mas foi begin object. Opa, ele não está aparecendo, ele está esperando uma string? Ele está usando GsonDeserializer, etc., etc., vamos dar uma olhadinha aqui no meu Kafka service.
+
+Meu Kafka service, olha aqui, key deserializer é uma string, value deserializer é um Gson deserializer, maravilha, agora que a gente terminou o Gson deserializer, a gente tem que tomar um cuidado, o que que acontece?
+
+Se eu rodar o meu new order main, eu vou enviar tanto um order, quanto uma string. O order é um objeto Gson, o string é uma string pura, não é um objeto, isso quer dizer, o meu log service, que vai tentar transformar tudo isso daqui utilizando sempre o quê?
+
+Um Gson, quando ele recebe do e-mail, que é uma string, não é um Gson... 
+
+quando ele recebe uma string e não um Gson, ele vai se perder. 
+
+Então, o que a gente teria que fazer é que quando eu quisesse, em algumas situações eu vou usar o Gson deserializer, em outras situações, eu quero utilizar outra coisa.
+
+É um dos caminhos, se eu não quiser permitir... se eu quiser permitir, enviar, usar não somente o Gson deserializer. 
+
+Uma outra maneira, é eu criar uma casca para um e-mail, assim como eu tenho um order, eu tenho uma casca para um e-mail e você vai ver que em 99,9% das vezes, a gente quer uma classe que representa uma mensagem, por que isso?
+
+Porque uma string pura, um número puro, provavelmente tem mais informação ali, pensa num e-mail, o e-mail tem um corpo e tem o cabeçalho, então na prática, a gente quer ter aqui, não só isso, a gente quer ter um pouquinho mais, um e-mail a ser enviado, ele tem o subject e ele tem o body, ele tem as duas coisas.
+
+Vou colocar aqui final, porque não é para alterar e vamos gerar o construtor, então a gente vai ter esses dois, o subject e o body. 
+
+Então, o que que a gente faz agora? 
+
+eu vou começar do zero, quando a gente envia new order, o new order vai despachar ou uma order ou um e-mail, ele despacha ou uma order ou um e-mail.
+
+Agora que eu terminei o Gson deserializer, vamos parar para pensar, o log service, ele vai receber mensagens de diversos tipos e o Gson não vai ter como saber, “Ah, esse daqui é uma string”, “Ah, esse daqui é um objeto tipo order”, “Ah, esse daqui é um e-mail”.
+
+Então quer dizer, por mais que no fraud detector service, a gente saiba que a gente quer uma order, a gente sabe que a gente quer uma order aqui, tem outras situações que a gente não sabe, tem situações que a gente não sabe, tem situações, tipo essa do log, que a gente pode receber qualquer coisa.
+
+Então, a gente não está interessado no objeto, nesse caso em si, nesse caso específico, eu estou interessado simplesmente na string. 
+
+Então, vamos tentar rodar o fraud detector service, vai enviar as mensagens.
+
+Lembra, se por algum motivo você enviar e ela estiver num formato diferente agora, você pode começar a ter alguns conflitos, que mensagens antigas foram enviados com um tipo de objeto, a mensagem serializada de uma maneira e você está tentando serializar de outra, isso é bem comum de acontecer.
+
+Então, eu vou tentar mandar a mensagem agora aqui, mandei as mensagens, vamos ver aqui no fraud detector. 
+
+Opa, deu algum erro aqui, ele estava esperando uma string, mas recebeu um begin object, por que isso?
+
+Porque... percebe que o new order main mandou orders, mas o fraud detector, em nenhum momento, ele falou aqui nos properties, que ele estava esperando um order, ele falou string. 
+
+Então, de alguma maneira, quando a gente cria o nosso service, a gente tem que ser capaz de dizer uma configuração extra.
+
+Qual é o tipo que eu espero de volta? 
+
+O tipo que eu estou esperando é o tipo order.class, de alguma maneira a gente tem que ser capaz de falar isso, então de alguma maneira, eu vou fazer com que o meu construtor receba aqui o tipo class type.
+
+Claro, ela é do tipo “T”, então eu vou passar isso daqui como parâmetro e a mesma coisa aqui, porque vai ser... todo o construtor precisa agora do type, a gente passa o type aqui, a gente muda a signature para ter o type.
+
+E a gente fala aqui: “Na hora de criar os properties, usa o type e aqui no properties, recebe o class “T” type e a gente usa aqui o nosso type”. 
+
+Esse método não vai poder mais ser estático, vou tirar ele daqui, para ele poder saber o tipo “T”, aqui eu passei o type.getName. Então, eu estou usando o tipo aqui.
+
+Então, agora a gente está passando o tipo para o Kafka service, posso fechar, posso rodar o fraud detector service de novo. 
+
+Opa, agora eu tenho que corrigir os outros lugares que tem que dizer qual é o tipo.
+
+Então, por padrão, o e-mail vai estar continuar recebendo uma string e esse outro aqui também, o log, vamos deixar string por enquanto também, mas o que a gente está interessado em rodar? 
+
+O fraud detector service, vamos ver se o fraud detector service está funcionando, depois a gente tem que corrigir o e-mail e o log.
+
+Então o fraud detector falou: “Não posso fazer o cast de order para string por algum motivo, então de alguma maneira, quando a gente fez o run e a gente tentou fazer o parse, aqui, esse parse, ele recebeu o order e tentou transformar numa string, de alguma maneira ele tentou transformar numa string, por quê?
+
+Porque a gente está passando aqui como string, a nossa função deveria ser de quê? 
+
+De order. 
+
+Repara que a gente não precisa mais desse order aqui, porque esse cara aqui recebe order, fechou, vamos lá de novo.
+
+Então, agora a gente está usando o order como valor, acho que ele já tinha consumido as mensagens, talvez por isso ele não esteja rodando nada, então vou tentar agora aqui de novo mais 10 mensagens no new order main, envio 10 mensagens, 10 de order, 10 de e-mail e está aí, processando as compras, é uma order de verdade agora, que está sendo recebida.
+
+Vamos fazer a mesma coisa para os outros, vamos fazer a mesma coisa para o e-mail e para o log, para o e-mail ficou fácil, porque é só a gente dizer: “O e-mail é uma string e acabou”, então se eu rodar o e-mail service do jeito que está, que vai receber uma string.
+
+Então vamos ver lá, resetting offset, então ele está zerado, vamos rodar o new order main, ele tem que receber 10 valores aqui como strings e recebeu os 10 como string. 
+
+Então o e-mail já está funcionando também. 
+
+A grande questão é o log, porque no log, ele vai receber qualquer coisa, inclusive order, inclusive string, vai receber as duas coisas.
+
+Vamos testar rodar ele uma vez, a gente testa rodar e agora a gente roda o nosso new order main, quando a gente rodar o new order main, a gente vai ver que ele pode se perder. 
+
+Por que que ele se perde? 
+
+Porque no log, a gente vai ter agora os dois tipos, a gente vai ter strings e objetos, strings tudo bem, mas objeto?
+
+Aí, ele fala: “Não, objeto não, estava esperando uma string” e aí, da “caca”, então a gente precisa revisar como a gente faz o log.
+
+OBS:
+**o codigo neste momento nao esta funcional, gerando erros na leitura das mensagens no logService**.
+
+KafkaService.java
+```
+class KafkaService<T> implements Closeable {
+    private final KafkaConsumer<String, T> consumer;
+    private final ConsumerFunction parse;
+
+    KafkaService(String groupID, String topic, ConsumerFunction parse, Class<T> type) {
+        this(parse, groupID, type);
+        consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
+    }
+
+    KafkaService(String groupID, Pattern topic, ConsumerFunction parse, Class<T> type) {
+        this(parse, groupID, type);
+        consumer.subscribe(topic); // inscriçao nos topicos por regex
+    }
+
+    private KafkaService(ConsumerFunction parse, String groupID, Class<T> type) {
+        this.parse = parse;
+        this.consumer = new KafkaConsumer<String, T>(properties(type, groupID));
+    }
+
+    void run() {
+        while (true) { // fica chamando o kafka para procurar mensagens
+            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+            if (!records.isEmpty()) {
+                System.out.println("encontrei " + records.count() + " registros");
+                for (var record : records) {
+                    parse.consume(record);
+                }
+            }
+        }
+    }
+
+    private Properties properties(Class<T> type, String groupID) {
+        var properties = new Properties();
+        properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());// deserializador da chave
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, GsonDeserializer.class.getName()); // deserializador de mensagens
+        properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupID);// consumer group name
+        properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());// client name
+        properties.setProperty(GsonDeserializer.TYPE_CONFIG, type.getName());
+
+        return properties;
+    }
+
+    @Override
+    public void close() {
+        consumer.close();
+    }
+}
+```
+
+FraudDetectorService.java
+```
+public class FraudDetectorService {
+    public static void main(String[] args) {
+        var fraudService = new FraudDetectorService();
+        try(var service = new KafkaService<Order>(
+                FraudDetectorService.class.getSimpleName(), // group
+                "ECOMMERCE_NEW_ORDER", // topic
+                fraudService::parse, // parse function
+                Order.class // expected type of message
+        )) {
+            service.run();
+        }
+    }
+
+    private void parse(ConsumerRecord<String, Order> record) {
+        System.out.println("-----------------");
+        System.out.println("Processando new order, checking for fraud");
+...
+```
+
+LogService.java
+```
+public class LogService {
+    public static void main(String[] args) {
+        var logService = new LogService();
+        try (var service = new KafkaService(
+                LogService.class.getSimpleName(),
+                Pattern.compile("ECOMMERCE.*"),
+                logService::parse,
+                String.class)) {
+            service.run();
+        }
+    }
+...
+```
+
+EmailService.java
+```
+public class EmailService {
+    public static void main(String[] args) {
+        var emailService = new EmailService();
+        try (var service = new KafkaService(
+                EmailService.class.getSimpleName(),
+                "ECOMMERCE_SEND_EMAIL",
+                emailService::parse,
+                String.class
+        )) {
+            service.run();
+        }
+    }
+...
+```
+
+GsonDeserializer.java
+```
+public class GsonDeserializer <T> implements Deserializer<T> {
+
+    public static final String TYPE_CONFIG = "br.com.alura.ecommerce.type_config"; // uma string qualquer. vai ser overriden pelo tipo passado
+    private final Gson gson = new GsonBuilder().create();
+    private Class<T> type;
+
+    @Override
+    public void configure(Map<String, ?> configs, boolean isKey) {
+        String typeName = String.valueOf(configs.get(TYPE_CONFIG));
+        try {
+            this.type = (Class<T>) Class.forName(typeName);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Type for deserialization does not exist in classpath", e);
+        }
+    }
+
+    @Override
+    public T deserialize(String s, byte[] bytes) {
+        return gson.fromJson(new String (bytes), type);
+    }
+}
+```
+
+ConsumerFunction.java
+```
+public interface ConsumerFunction<T> {
+    void consume(ConsumerRecord<String, T> record);
+}
+```
+
 ### 
+
