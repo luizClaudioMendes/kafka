@@ -46,3 +46,8 @@ kafka_2.13-3.2.1/config/tools-log4j.properties
 
 
 ecommerce/.idea/*
+ecommerce/common-kafka/target/*
+ecommerce/service-email/target/*
+ecommerce/service-fraud-detector/target/*
+ecommerce/service-log/target/*
+ecommerce/service-new-order/target/*

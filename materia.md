@@ -61,7 +61,7 @@ terminado em
   - [Microserviços e módulos](#microserviços-e-módulos)
     - [Microsserviços como módulos em um mono repo](#microsserviços-como-módulos-em-um-mono-repo)
       - [Criando um novo modulo no maven](#criando-um-novo-modulo-no-maven)
-    - [](#)
+    - [Binários dos microsserviços](#binários-dos-microsserviços)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3417,4 +3417,141 @@ Que todos eles estão acessando, que é comum e que pode ser um perigo?
 OBS:
 **ver commit para ver as alteraçoes necessarias**
 
-### 
+### Binários dos microsserviços
+Chegou na hora de a gente falar na classe order, qual que é a diferença da dependência desses projetos, para uma classe do tipo Kafka dispatcher e a classe order? 
+
+O problema é o seguinte, se eu um desses serviços é lançado com uma versão do Kafka dispatcher e o outro com outra versão do Kafka dispatcher, não tem problema, por quê?
+
+Porque se um está despachando a mensagem e o outro está recebendo mensagem, mas ambos estão usando o Kafka, tanto faz, certo? 
+
+Porque está indo o subject, está indo o body, está indo tudo. 
+
+Agora, o order não, o order define a mensagem, o formato da mensagem, o conteúdo da mensagem, tudo depende dessa classe order.
+
+Então quer dizer que, se eu tenho uma classe order, que é compartilhada entre todos os projetos que utilizam o order, a mesma classe order, então um JAR, por exemplo, um Zip qualquer, de qualquer formato de programação de linguagem... que é compartilhada entre outros... todos eles, funciona.
+
+Só que o que que acontece? 
+
+Todos eles vão usar um order que userId, orderId e amount. 
+
+Talvez um desses projetos precisasse de um campo a mais ou tu precisasse de um campo a menos ou tu não sei o quê.
+
+A representação de um pedido de compra, para cada um dos serviços, poder ser um pouco diferente e do jeito que a gente está fazendo, a gente está forçando goela abaixo. 
+
+Então, quer dizer, se um desses serviços precisar de uma coisa nova, vai ter que criar a coisa nova aqui.
+
+E provavelmente, talvez, depende de como implementado o serializer e o deserializer, a gente tenha que atualizar todos os outros serviços e lançar todos os outros serviços ao mesmo tempo e isso não permite a evolução dos serviços de maneira independente.
+
+Imagina: “Ah, eu terminei aqui o meu código, eu quero lançar”, você tem que esperar aquele outro pessoal corrigir um bug que está na branch principal, porque eles também estão usando a classe order, só que para lançar o deles, precisa atualizar, que está com um erro ainda.
+
+E aí, você vai ter que ficar esperando e aí, você fica esperando e aí, um espera o outro. 
+
+E aí, se tem um lugar que tem 300 projetos, todo mundo está sempre esperando alguém. 
+
+Estou dando um exemplo de 300 micro serviços, claro. 
+
+Então é uma abordagem complicada, ter esse arquivo compartilhado com todo mundo.
+
+O que que costuma ser feito? 
+
+Invés de a gente ter esse arquivo compartilhado com todo mundo, quem precisa de uma order, tem a sua própria order. 
+
+Então, vamos ver quem precisa de uma order, o e-mail precisava de order?
+
+Não precisava, então o que que a gente pode fazer? 
+
+Se não precisa, a gente remove a dependência, quem mais? 
+
+O fraud detector, o fraud detector recebe uma ordem, então ele precisa. 
+
+Quem mais? 
+
+O service log, o service log lida com string, não precisa, ele usa string deserializer.
+
+new order precisa, então sobraram dois projetos, o fraud detector e o new order, que precisam de order. 
+
+O que que eu vou fazer? 
+
+Eu vou pegar nos dos projetos, a gente tem o pacote br.com.alura.ecommerce e aí, eu vou mover esse daqui para cá, movi.
+
+Refactor, continue, movi. 
+
+Se eu movi para o fraud detector, o fraud detector continua ok, inclusive eu posso tirar agora a dependência. 
+
+Então beleza, desse daqui está ok, só que se a gente abrir agora, o new order main, não tem mais a classe order. 
+
+Então, eu vou copiar e vou colar a classe order aqui, aí você fala: “Guilherme, mas então, você ficou com um copy paste de uma classe de modelos simples”, anêmica.
+
+Então, quando a gente fala orientação objetos, só tem dados, que lembram estruturas de dados, é exatamente isso o que eu tenho aqui, que é uma má prática. Só que essa classe está sendo utilizada para que nesse instante?
+
+Só como uma maneira, uma casca de serialização, desserialização, parece um data transfer object, para quem está acostumado com o mundo de design patterns e transferência de objetos, é isso que está lembrando um data transfer object.
+
+Uma maneira de eu serializar e desserializar e enviar esses dados de uma camada para outra, é isso, de eu garantir o esquema com certas características. 
+
+Claro, Gson serializer e deserializer tem que ser implementado de maneira com aquilo que você quer, para a serialização e a desserialização.
+
+Quero campos opcionais, não quero campos opcionais, etc. 
+
+Beleza, faz o processo de serialização e desserialização que você quer, mas agora, a gente tem então essa duplicidade dessa classe simples e boba e é isso que a gente vai trabalhar, por quê?
+
+Porque talvez em uma, a gente precise de mais campos, em outra de menos, não tem problema. 
+
+É claro, o desserializador precisa ser capaz de lidar com campos que eu não me interesse, com campos que faltam, então eu jogo uma exception, aí você vai fazer a medida do que precisar.
+
+Isso é um assunto deparado, que é uma questão de serialização, desserialização, que a gente toca em cursos do gênero. 
+
+Então, não sobrou nada aqui? Eu posso apagar esse diretório até, porque não sobrou nada, então eu posso apagar esse diretório, o que mais?
+
+Eu posso dar uma batida nos pontos, agora ninguém mais depende daquele principal e a gente tira o compile porque, na verdade, é tudo dependência para valer.
+
+O que que falta? 
+
+Testar tudo isso. 
+
+No service e-mail, então eu vou rodar ela aqui.
+
+O próximo, além do e-mail é o fraud detector service. 
+
+Vamos rodar o log service.
+
+falta a gente enviar 10 pedidos de compra, porque agora que a gente tem aqui todo mundo rodando.
+
+tem aqui no log service as várias mensagens, no fraud detector rodando e no e-mail service... agora, começou a rodar e enviar os e-mails. 
+
+Então, tudo isso está rodando. 
+
+Se você está num projeto do tipo maven, gradle ou outra ferramenta de Java.
+
+E se você está em outra linguagem, o que que você pode querer fazer agora? 
+
+Gerar todos esses seus projetos. 
+
+Claro, no maven, a gente usa o mvn package, que gera o pacote de um projeto. 
+
+Então, eu vou aqui no projeto principal, eu abro aqui o meu maven do principal, que esse projetão, que tem vários módulos.
+
+E aqui em cima a direita tem um maven, então no maven, eu posso escolher o e-commerce, que é a raiz e eu posso pedir para rodar, eu quero rodar esse cara, eu queria rodar. Para rodar, eu tenho aqui um maven goal, qual é o goal que eu quero rodar?
+
+Eu quero rodar o package. 
+
+Então, ele está rodando um mvn package, para quê? 
+
+Para gerar o pacote desse projeto. 
+
+Calma aí, ele está gerando de quem?
+
+Ele está gerando do Kafka JAR, então ele vai gerar o Kafka, ele vai gerar o JAR dessa biblioteca aqui, dessa daqui. 
+
+Depois ele vai gerar o JAR do service e-mail e por aí, vai. E aí, ele começa a gerar o JAR de cada um desses caras.
+
+Ele falou: “Gerei o JAR do e-commerce, o JAR do common-kafka, o JAR do service e-mail, do service fraud detector, do service log e do service new order. 
+
+Claro, o e-commerce é só um pom, é só um parênteses, é só um pai que não tem código no nosso caso, mas todos os outros, ele gerou o JAR.
+
+Então, quer dizer, se a gente está trabalhando com submódulos e um projeto com micro serviços, várias serviços dentro do maven ou de outra ferramenta em qualquer linguagem, você vai ter um comando, no caso do maven, mvn package, que você roda e já gera todos os seus JAR, todo os seus serviços, faz o build de todos os serviços.
+
+Claro se você quiser criar... rodar o build de só um serviço, você pode ir lá no maven ou na sua ferramenta que você utiliza e rodar só para ela, não tem problema nenhum. 
+
+Então com isso, a gente tem aí, todos os nossos JARs sendo criados e todas as bibliotecas e a gente pode fazer deploy como a gente quiser.
+
+
