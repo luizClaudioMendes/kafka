@@ -63,6 +63,9 @@ terminado em
       - [Criando um novo modulo no maven](#criando-um-novo-modulo-no-maven)
     - [Binários dos microsserviços](#binários-dos-microsserviços)
     - [O que aprendemos?](#o-que-aprendemos-4)
+- [kafka: fast delegate, evoluçao e cluster de brokers](#kafka-fast-delegate-evoluçao-e-cluster-de-brokers)
+  - [novos produtores e consumidores](#novos-produtores-e-consumidores)
+    - [Produtores consumidores e o eager de patterns](#produtores-consumidores-e-o-eager-de-patterns)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3561,4 +3564,151 @@ Então com isso, a gente tem aí, todos os nossos JARs sendo criados e todas as 
 * como gerenciar dependências entre módulos
 * como gerar os binários de cada módulo
 
+# kafka: fast delegate, evoluçao e cluster de brokers
+## novos produtores e consumidores
+### Produtores consumidores e o eager de patterns
+A pessoa gerou uma venda. 
 
+Então eu tenho um serviço que gera 10 vendas para testar e essas 10 vendas geram 20 mensagens 10 de e-mail e 10 de novas vendas, novos pedidos de venda. Esses pedidos de venda passam por um detector de fraude e o e-mail para service mail. 
+
+Todas as mensagens são logados no service log.
+
+Repara que tem serviços enviando e serviços escutando mensagens. 
+
+Vamos agora misturar as duas coisas, mostrar que não tem desafio em misturar - enviar e receber mensagens no mesmo serviço.
+
+Vamos pegar o serviço de detecção de fraudes que ele recebe a mensagem de um novo pedido, se ele recebe mensagem de um novo pedido no Java dele ele espera 5 segundos e a ordem foi processada - deu certo ou não deu não importa.
+
+Eu queria simular uma situação onde em alguns casos esse nosso pedido foi aprovado e em outros não, teve uma fraude. 
+
+Quando gera os pedidos de compra, o valor é um valor de um a cinco mil mais ou menos.
+
+Você poder fazer assim, se valor for acima de quatro mil e quinhentos recusa. 
+
+Na prática se você está usando uma inteligência artificial, algoritmo que for você vai deixar seu estimador nesse serviço, a equipe da machine learning implementa e deixa aqui.
+
+Vou fazer uma regra simples para tentar identificar a fraude - a fraude é seu pedido é muito caro, é fraude não. 
+
+Isso não é uma coisa do mundo real esse detector de fraude, que não é o foco desse curso. 
+
+Esperei esses 5 segundos para simular esse algoritmo lerdo, e quero pegar essa order, acessá-la no record, o var order = record.value dela devolve uma ordem para mim. 
+
+Agora eu posso fazer o que eu quiser com essa order. 
+
+Será que o valor dessa order, order.get, get o que? 
+
+O meu get amount eu gostaria de comparar, gostaria de saber se ele é maior ou menor. 
+
+Então queria saber se é greater ou lesser, mas não tem. No BigDecimal o que tem é compareTo.
+
+Eu passo outro BigDecimal, vou passar com aspas que eu tenho a precisão de que seja “4500” exatamente. 
+
+Se for maior ou igual a zero, quer dizer que o preço é muito alto é maior que 4500, pretending the fraud happen when the amount is >= 4500, maior ou igual a 4500.
+
+Nesse caso teve uma fraude. 
+
+Eu acho legal mesmo que a lógica seja super simples, extrair em Um método. 
+
+No IntelliJ Refractor Extract Method, quero saber se é fraude isFraud.
+
+Aproveitaria o método de fraude aqui no caso no meu serviço ou nas classes que fizerem sentido para o seu serviço. 
+
+Se for uma Fraude que eu vou fazer? 
+
+Em vez do colocar order processed, vou colocar order is a fraud.
+
+Se não ela não é, quer dizer ela não é uma fraude, System.out eu vou falar approved: + order, posso colocar aqui aprovado. 
+
+Repara que agora a minha classe order é diferente da classe order que envia.
+
+Não tem problema, porque o processo de serialização e desserialização só usa os campos. 
+
+Lembra que eu falei importância no outro curso, de que o processo de serialização e desserialização pode ser feita de diversas maneiras, da maneira que estou fazendo agora se um serviço precisa de certos métodos e outro de outro não tem problema nenhum.
+
+Não precisa ficar colocando dependências nos dois, misturando e “sujando” um projeto com coisa do outro projeto. 
+
+Eles são isolados, tem um get que é um método simples, ainda continua anêmico etc., mas poderia colocar outros métodos.
+
+Vou rodar o meu fraud detector, run fraud detector, vou agora no meu New Order Main, vou tentar rodar também.
+
+Vou rodar primeiro meu fraud detector. 
+
+Vou mandar 10 mensagem de e-mail, 10 mensagens de New Order e vemos as new orders chegando e checando pela fraude. 
+
+Checou pela fraude aprovou essa e ele vai aprovando ou recusando de acordo com o valor, ele vai imprimindo.
+
+É uma fraude e quando é sucesso ele fala aprovado, só que ele não está falando dados de aprovado ou os dados do que foi uma fraude, eu queria imprimir aqui, quando imprimo realmente a ordem, eu queria substituir também o to string, poder mostrar a order por completo então no caso do Java pode gerar to string muito fácil aqui.
+
+Cada linguagem, cada ferramenta vai ter uma maneira.
+
+Então vou mandar mensagem nova, as 10 mensagens e vai começar a ver agora as orders corretas. 
+
+Então essa daqui que o amount é 2716 tem ser aprovada e depois tem outra 2500 aprovada. 
+
+E por aí vai, cada uma delas vai sendo aprovada ou recusada.
+
+O que eu queria era que o meu serviço além de ter tem essa vontade de evoluir independentemente do outro serviço, eu posso agora enviar mensagens também. 
+
+Além de eu receber mensagens, eu gostaria de enviar mensagem. 
+
+Se eu quero enviar mensagem preciso de um Kafka Dispatcher.
+
+Como estamos dentro do FraudDetectorService vou colocar private final KafkaDispatcher que ele vai despachar se é o pedido que foi aceito eu poderia despachar o pedido, a minha order.
+
+OrderDispatcher é meu KafkaDispatcher do tipo order, como já está definindo aqui o tipo, não precisa do tipo aqui e temos um dispatcher agora. 
+
+Com order dispatcher eu posso despachar mensagens, se foi, por exemplo, recusado OrderDispatcher.send, tópico e-commerce, minha order fraudulenta, então foi rejeitada, reject. 
+
+Poderia ser fraude, o que fosse, a chave que estou ID do usuário get, não tem o ID do usuário, user ID, e qual que é o objeto que vai enviar? A própria order.
+
+Faltou criar o get user ID, vamos lá no nosso order, o getUserId, criei, ele está aqui. 
+
+Tanto no envio do ecommerce rejected e do ecommerce order approved, nesse caso foi aprovada a minha order. 
+
+Ele está reclamando das exceptions, eu tenho que jogar as exceptions que podem ocorrer, adiciono as exceptions na minha função. 
+
+Dá um erro, porque a função joga exception, a nossa função de passa joga exception. 
+
+O KafkaService recebe um consumer function que não pode jogar exception.
+
+tem que tomar cuidado. vamos ter de adicionar as exceptions aqui. 
+
+Vou adicionar o mínimo, prefiro ir sempre pelo caminho do mínimo, vai adicionando na medida do necessário. 
+
+então agora no ConsumerFunction pode dar ExecutionException ou InterruptedException, vamos saber o que fazer. Dá uma olhada no KafkaService, quando chama consume quer tratar esse erro. 
+
+Se deu esse erro, preciso tratar.
+
+Ou eu jogo exception ou eu paro meu serviço completamente, o caso da exception ou eu trato a exception para essa mensagem e a próxima eu continuo trabalhando.
+
+tem várias opções para fazer o tratamento, por enquanto você só vai logar. 
+
+então, so far, Just logging the exception for this message, em algum lugar armazenar as mensagens que deram erro. 
+
+Poderia não comentar essa mensagem e deixa tentar de novo, enquanto está dando exception, tem várias maneiras de lidar com esse erro e focar na hora de falar apenas de tratamento de erro.
+
+Por enquanto que eu queria era ser capaz de um serviço que recebe, também enviar mensagens e é isso que eu estou fazendo. 
+
+Mas o que falta? 
+
+Rodar o log, vou restartar FraudDetectorService, vou abrir meu LogService e rodar para ver as mensagens todas.
+
+Quando envia 10 e-mail, 10 da compra, do pedido de compra que chega aqui. 
+
+Esses 10 do pedido de compra vão virar 10 novas - seja de aprovação ou de rejeição. 
+
+Então 30 mensagens enviadas de um lado para o outro, rodando NewOrderMain, todas elas chegam aqui do send email, todas do FraudDetector chegam no log, daqui a pouquinho FraudDetector começa a rodar começa a rodar e fala enviei.
+
+E o LogService não está recebendo, um cuidado muito importante quando está trabalhando com o LogService com pattern; quais são os subjects que ele está escutando não é dinâmico, não é que enquanto ele está escutando se surgiu subject novo ele escuta, não.
+
+Ele começa a escutar o subject na hora que você roda ele, os subjects que têm, que servem esse padrão são subjects saber se ele vai escutar. 
+
+**Se surgir um novo subject que segue esse padrão, não vai escutar** e surgiu um novo subject que não existia antes, dois novos surgiram e foram enviados.
+
+Isto é, ele não tava escutando. 
+
+Mas agora como esses tópicos já existem podemos rodar de novo o LogService e rodar o NewOrderMain.
+
+Agora sim LogService vai pegar todas as mensagens dos tópicos que já existem, que são aqueles dois de ecommerce send mail e outro e do e-comerce approved e do e-commerce rejected (esse tem de esperar ocorrer aqui, de vez em quando acontece); 
+
+fizemos um consumidor que também é produtor.
