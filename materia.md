@@ -72,6 +72,7 @@ terminado em
   - [evoluindo um serviço](#evoluindo-um-serviço)
     - [Evoluindo serviços e schemas](#evoluindo-serviços-e-schemas)
     - [Escolhendo o id adequado](#escolhendo-o-id-adequado)
+    - [O que aprendemos?](#o-que-aprendemos-6)
   - [](#)
 
 
@@ -4040,5 +4041,10 @@ Já o nosso FraudDetector está rodando as várias vezes, tem orderId, amount, e
 Claro se algum serviço precisar é só pedir, seja acessando o banco direto - que seria meio estranho, você com a mão no banco de dados de outro serviço - ou comunicando via https mensagem. 
 
 Conseguimos isolar o que fazia sentido em relação ao ID.
+
+### O que aprendemos?
+* como evoluir um serviço sem quebrar os schemas
+* como pensar a evolução de um serviço
+* discutindo UUID e id único 
 
 ## 
