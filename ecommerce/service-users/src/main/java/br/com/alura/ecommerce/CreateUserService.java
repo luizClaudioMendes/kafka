@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.UUID;
 
 public class CreateUserService {
 
@@ -47,7 +48,7 @@ public class CreateUserService {
 
         if(isNewUser(order.getEmail())) {
             System.out.println("is new user");
-            insertNewUser(order.getUserId(), order.getEmail());
+            insertNewUser(order.getEmail());
             System.out.println("usuario " + order.getEmail() + " adicionado");
         } else {
             System.out.println("Using old user");
@@ -55,11 +56,12 @@ public class CreateUserService {
 
     }
 
-    private void insertNewUser(String uuid, String email) throws SQLException {
+    private void insertNewUser(String email) throws SQLException {
         var insert = connection.prepareStatement(
                 "insert into users (uuid, email) " +
                 "values (?,?)");
 
+        var uuid = UUID.randomUUID().toString();
         insert.setString(1, uuid);
         insert.setString(2, email);
 

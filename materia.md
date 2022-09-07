@@ -71,6 +71,8 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-5)
   - [evoluindo um serviço](#evoluindo-um-serviço)
     - [Evoluindo serviços e schemas](#evoluindo-serviços-e-schemas)
+    - [Escolhendo o id adequado](#escolhendo-o-id-adequado)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -3940,3 +3942,103 @@ Vou rodar, gerei as 20 e dá uma olhadinha no CreateUserService, tem várias que
 
 Ficou faltando um probleminha aqui do modelo que vamos atacar daqui a pouco.
 
+### Escolhendo o id adequado
+Continuando, vamos dar uma olhadinha para o nosso processo inteiro. 
+
+Tem NewOrderMain que gera ID de compra, ID e um e-mail do usuário. 
+
+Mas se tem uma pessoa fazendo uma compra e eu ainda não sei se eu tenho esse usuário no banco ou não, eu tenho ID do usuário ainda?
+
+Na verdade até o identificador é o e-mail não é userID, repara que nesse instante percebe que o desenho do sistema não está fazendo sentido, porque quando tem um processo de compra a pessoa digita o e-mail dela e ela tem o número de compra, o número do pedido da compra.
+
+Primeiro o identificador do usuário é o e-mail do usuário, certo então já tem identificador do usuário, mesmo que queira gerar um identificador único atrás de um uuid para o usuário; esse não é o momento, não é a cada compra do usuário eu gero novo uuid do usuário para ele, não.
+
+A cada compra do usuário eu gero ID de compra do usuário, apenas se ele é novo daí gero ID. 
+
+Esse user ID que estou criando não deveria existir, a nossa order não tem userID, tem order ID, e tem o e-mail; se você quiser pegar informações do usuário que fez essa compra, vai ter de acessar um banco ou um serviço. 
+
+Que a partir do orderID você navega nos dados do usuário que fez essa order.
+
+Quando faz a compra não tem orderID, não tem userID. 
+
+Agora faz sentido com um site que você costuma comprar. 
+
+Tem um problema, porque quando está enviando uma order, enviando o pedido de compra, qual que é a chave que eu vou usar?
+
+Estávamos usando ID do usuário, garantia que se um usuário faz duas compras esse usuário vai ser primeiro processada a primeira e depois a segunda, vai ser sempre na ordem; para mesma chave vai ser executado sequencialmente.
+
+Se o usuário faz três compras, vou tentar a primeira dele, depois a segunda, depois a terceira, nessa ordem que eu vou tentar. 
+
+Se usar orderID vai rolar? 
+
+Pode ser uma chave válida, o problema é toda compra orderID é uma compra de valor novo, então dentro de um usuário se ele fizer três pedidos pode ser que o segundo seja antes do primeiro, que vem antes do terceiro.
+
+Eu quero garantir que todas as compras do mesmo usuário vem em ordem, sejam processadas em ordem através do ecommerce new order da mensagem e depois para frente vai ser a chave que vai ser enviada. 
+
+Em vez de usar orderID eu uso o e-mail como chave do meu usuário, então tanto NewOrder quanto sendmail vai ser usado nessa ordem.
+
+Eu tenho e-mail sendo usado como chave, NewOrderMain joinha. 
+
+Tenho de observar os outros serviços, que recebe. 
+
+Primeiro o CreateUserService recebe o ECOMMERCE NEW ORDER, agora a nossa classe order não tem mais, então eu apago aqui, não tenho mais CreateUserService.
+
+Quando estou criando usuário, se o usuário é novo, insere o usuário. 
+
+Se eu vou inserir usuário eu ainda não tenho ID dele, eu vou gerar uuid, então UUID.randomUUID, toString, nesse caso gero ID novo para esse usuário, só nessa situação.
+
+Esse CreateUserService que estava lá. 
+
+Service-new-order já passei, service-log trabalha com Strings, service-fraud-detector também trabalha com order, vamos lá. 
+
+Não tem mais userId. 
+
+Vou salvar e vou fechar. você fala o código está funcionando, quase. 
+
+porque quando dispara mensagem para próxima fase - no meu caso tem uma próxima fase nessas duas situações, eu estava usando userId para dizer já que a compra foi rejeitada ou aprovada, dentro das compras aprovadas a próxima fase eu quero enfileirar as mensagens de acordo com o usuário.
+
+Sabe não tem userId na compra, agora que pelo detector de fraude foi aprovado, precisa processar o pagamento. 
+
+Pensa que vai processar o pagamento, provavelmente vai querer fazer na ordem que o usuário teve as suas compras aprovadas.
+
+Agora pelo detector de fraude, se você falar não faço questão que seja na ordem que for aí você poderia usar outra chave. 
+
+Como estou usando por usuário eu vou pegar o get.Email. 
+
+O rejeitar, eu quero enviar as mensagens de rejeição ou fazer o processamento de rejeição no usuário de acordo com a ordem, talvez sim, talvez não.
+
+Você acaba discutindo, por padrão a chave vai ser por usuário, assim sabe que as tarefas de um usuário dentro de um tópico vão ser executadas em sequência, você poderia querer executar em paralelo, tem situações que sim e que não. No meu caso aqui por padrão get.Email.
+
+Mas get.Email não existe, porque nossa order do FraudDetector não estava usando e-mail, basta receber, não precisava estar no construtor, precisava estar com uma variável membro aqui para Json utilizar.
+
+Aqui colocar o get.Email, se você quiser apagar e gerar novamente toString que ele vai colocar o e-mail no toString, toma cuidado para ter uma senha sendo impressa. 
+
+Temos o nosso FraudDetectorService também utilizando o e-mail.
+
+Você pode falar por padrão todas minhas mensagens tem de ter usuário e eu quero que seja realmente sequencial dentro de um usuário. 
+
+Você poderia fazer métodos send de programação que fosse o T, tem de ter um método do tipo get e userId ou outro.
+
+Por padrão seria isso. 
+
+Você deixaria uma outra opcional, porque que você quiser fazer um processo de get para usuário - quero fazer o extrato do ano passado, eu quero processar várias coisas ao mesmo tempo, de vários anos; quero processa-los em paralelo. 
+
+Chama o send com chaves distintas.
+
+No nosso caso quero sempre está dizendo a chave, sempre forçando desenvolvedor a escolher paralelo ou quero sequencial. 
+
+Vou rodar o CreateUserService, vou rodar também o fraud detector service e vou rodar o log service e enquanto ele está rodando eu vou dar o nosso e-mail, e-mail service.
+
+Então eu vou ter aqui 4 arquivos rodando, quatro classes de serviço rodando e quando as quatro estiverem de pé eu vou dar o meu NewOrderMain para que envie as mensagens de 10 compras de um mesmo usuário e veja como vai ser esse processamento.
+
+E agora eu sou capaz de rodar 10 mensagens, vamos rodas as mensagens. 
+
+O Create rodando, ele vai inserir na primeira vez por causa do e-mail.
+
+Já o nosso FraudDetector está rodando as várias vezes, tem orderId, amount, email, userId não faz sentido, é só banco de dados por enquanto. 
+
+Claro se algum serviço precisar é só pedir, seja acessando o banco direto - que seria meio estranho, você com a mão no banco de dados de outro serviço - ou comunicando via https mensagem. 
+
+Conseguimos isolar o que fazia sentido em relação ao ID.
+
+## 
