@@ -76,6 +76,7 @@ terminado em
   - [servidor HTTP](#servidor-http)
     - [Usando um servidor http como ponto de entrada](#usando-um-servidor-http-como-ponto-de-entrada)
       - [Jetty como servidor http](#jetty-como-servidor-http)
+    - [Fast delegate](#fast-delegate)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4183,4 +4184,43 @@ Mas se eu passar um valor aqui muito alto, tipo 5100, agora 5100 vai ser conside
 Deu fraude, está tudo funcionando como nós queríamos. 
 
 Pode ter um starting point - um ponto de entrada ou algo do gênero, que trabalha com as mensagens para dentro, não precisa ser um método Main de command line, pode ser http, pode ser o que for e você trata com os componentes, cada um desses componentes da maneira que tiver de tratar.
+
+### Fast delegate
+Nesse momento você está se perguntando “quanto de código eu coloco no meu servidor http?”. 
+
+Porque pode ser que eu tenho as coisas que eu queria fazer e não demoram tanto, por exemplo, enviar um e-mail será que não dava para enviar aqui dentro do meu servidor http?
+
+Você poderia colocar a biblioteca de envio de e-mail aqui dentro, usa Google, ou seja, quem for para enviar o e-mail, qual o problema? 
+
+Quanto mais código você colocar aqui dentro maior a chance de crashear e você perder a compra, perder a requisição do usuário final.
+
+Quanto mais código eu coloco aqui, maior a chance de dar uma exception, maior a chance de dar um erro e de algo não funcionar e ninguém saber o que aconteceu. 
+
+Enquanto eu não envio a mensagem, eu não tenho uma maneira fácil de replicar todo o processo.
+
+Se eu envio a mensagem e todo o processo de compra começa com envio de uma mensagem, se eu tenho essa mensagem logada em algum lugar e ela falhou e quiser tentar de novo, eu tenho enviar a mensagem de novo.
+
+É muito fácil de tentar de novo, você tem um monte de código aqui, como para tentar de novo boa sorte, você tem que acessar essa página de novo com o usuário logado, com um monte de coisa marcada para você poder enviar essas mensagens.
+
+Quanto menos código em toda a ponta de entrada, mais rápido você delega para o sistema de mensagens, quanto mais rápido você enviar essa mensagem menos chance de dar erro aqui.
+
+Se tiver, mais fácil de replicar, esse fast delegate joinha. 
+
+Porque fala para o usuário sua compra está sendo processada, boa sorte, você pode fazer um refresh e um web socket para descobrir quando foi processada, outras abordagens depois para saber quando a compra terminou.
+
+O mobile enviou uma mensagem de quero fazer uma compra, estou fazendo a compra. 
+
+Parabéns sua compra está sendo efetuada, daqui a pouco se comunica ativando um push notification. 
+
+Atualiza a tela, seja lá o que for, mas o mais rápido possível.
+
+Se o servidor o mais rápido possível dispara uma mensagem, para não ter chance de erro. Ele “se vira com o resto”. Essa a dica de um ponto de entrada, mínimo de código possível, mínimo de processamento, deixa que uma mensagem faça tudo para você.
+
+Mesmo aqui que eu estou enviando duas mensagens - meio ruinzinho. 
+
+Poderia argumentar de ter um serviço separado ou no mesmo serviço, que é realmente um novo pedido de compra e ele recebe do NewOrderMain uma mensagem e ele dispara as duas mensagens.
+
+Como não pretendo tocar mais no NewOrderMain só pretendo usar esse que dá para passar parâmetro, só pretendo tocar no Main quando eu quiser rodar várias vezes. 
+
+Assim, não vou me preocupar com esse caso, NewOrderMain, ficou mais um teste nosso do que o para valer, o nosso ponto de entrada para valer é NewOrderServlet.
 
