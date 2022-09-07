@@ -77,6 +77,8 @@ terminado em
     - [Usando um servidor http como ponto de entrada](#usando-um-servidor-http-como-ponto-de-entrada)
       - [Jetty como servidor http](#jetty-como-servidor-http)
     - [Fast delegate](#fast-delegate)
+    - [O que aprendemos?](#o-que-aprendemos-7)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4224,3 +4226,10 @@ Como não pretendo tocar mais no NewOrderMain só pretendo usar esse que dá par
 
 Assim, não vou me preocupar com esse caso, NewOrderMain, ficou mais um teste nosso do que o para valer, o nosso ponto de entrada para valer é NewOrderServlet.
 
+### O que aprendemos?
+* como usar um servidor http embarcado
+* como criar um serviço http
+* como enviar mensagens a partir do servidor http
+* a vantagem de um fast delegate
+
+## 
