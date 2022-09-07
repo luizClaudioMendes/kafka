@@ -1,0 +1,38 @@
+{
+	"info": {
+		"_postman_id": "7d469ed5-0b2c-4ddf-8faa-c3d68051f453",
+		"name": "ecommerce",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "13855912"
+	},
+	"item": [
+		{
+			"name": "localhost:8080/new",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/new?email=guilherme@email.com&amount=153",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"new"
+					],
+					"query": [
+						{
+							"key": "email",
+							"value": "guilherme@email.com"
+						},
+						{
+							"key": "amount",
+							"value": "153"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

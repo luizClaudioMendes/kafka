@@ -73,7 +73,9 @@ terminado em
     - [Evoluindo serviços e schemas](#evoluindo-serviços-e-schemas)
     - [Escolhendo o id adequado](#escolhendo-o-id-adequado)
     - [O que aprendemos?](#o-que-aprendemos-6)
-  - [](#)
+  - [servidor HTTP](#servidor-http)
+    - [Usando um servidor http como ponto de entrada](#usando-um-servidor-http-como-ponto-de-entrada)
+      - [Jetty como servidor http](#jetty-como-servidor-http)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4047,4 +4049,138 @@ Conseguimos isolar o que fazia sentido em relação ao ID.
 * como pensar a evolução de um serviço
 * discutindo UUID e id único 
 
-## 
+## servidor HTTP
+### Usando um servidor http como ponto de entrada
+Por enquanto você fez pedido de compra através de um método Main, um programa que você roda. 
+
+Pode ser que você tem um programa que você roda uma vez por semana, uma vez por dia, quando você quiser e ele gera mensagem se o sistema fica rodando.
+
+Assim como os nossos serviços, esses quatro serviços, você criou um que se comunica com serviço externo é comum também o ponto de entrada das mensagens seja uma camada que tem comunicação com o sistema externo, o ser humano através da internet.
+
+É muito comum que a atividade que seja feita que dispara uma primeira mensagem, dezenas e centenas de mensagens para portais é a interação humana com o site, por exemplo, pedido de compra de uma página Web que acessa. 
+
+Aperta o botão envia alguma informação e isso dispara uma primeira mensagem.
+
+Vamos tratar a outra ponta, onde o serviço começa através da web e vai ver interação de um serviço web com o Kafka. 
+
+Vou criar um novo serviço, o meu serviço vai ser o serviço http agora, um novo módulo, porque o site http vai estar no meu caso inteiro em um serviço – poderia ter vários sites.
+
+Eu vou ter um service http, você poderia ter vários serviços http, ecommerce, vou criá-lo. 
+
+#### Jetty como servidor http
+Agora eu quero criar aqui um servidor http; para fazer isso vai usar uma biblioteca que já existe um servidor http que já existe no mvnrepository jetty que tem diversas versões e as mais recentes são do org.eclipse.jetty server que vai dar o core.
+
+Quero o jetty-servlet, que dá apiServLet de Java, use a que você quiser no seu dia a dia de acordo com sua biblioteca, ferramenta, com a sua linguagem etc. 
+
+Eu estou pegando uma que é muito simples de usar, com poucas linhas de código vai conseguir trabalhar.
+
+Não me importa se api é nova, velha, antiga, importa que é simples e pode colocar rapidamente no que se quer e eu vou adicionar as dependências, dependencies, formato e salvo, para que comece a baixar nossa dependência.
+
+Vai baixar o jetty-servket e baixa o jetty core, na hora que terminar de baixar vai poder criar no service http ecommerce, pode criar uma nova classe br.com.alura.ecommerce, vou criar o meu HttpEcommerceService, dê o nome que faz sentido.
+
+Vou ter um Main que vai rodar um servidor, com o Jetty, primeiro vou criar um server que é new Server. 
+
+Como eu quero abrir a porta 8080, por padrão, eu vou fazer o meu servidor rodando nessa porta. 
+
+Sever.start, estou rodando.
+
+Não quero simplesmente rodar, quero fazer mais coisas, primeiro eu quero esperar o servidor terminar para eu terminar minha aplicação, server.join faz isso, fica esperando. 
+
+Ele pode jogar uma exception interrupted, pode ser que alguém mandou parar.
+
+E dá um interrupted exception, antes de começar eu quero configurar, para o servidor quando alguém chamar uma requisição, eu quero que você lide server.setHandler essa requisição através de um contexto que eu vou criar, context.
+
+Vou criar um contexto que lida com as requisições, no meu caso vai ser um ServletContextHandler eu posso até passar parâmetro se eu quiser, vou deixar padrão. 
+
+Vou em context, seta que o padrão que eu vou querer ter é /, é nada, é raiz mesmo, 8080.
+
+Quando alguém chamar localhost:8080/ eu vou adicionar uma Sertlet, a minha new ServletHolder do Jetty e aí eu passo pra valer, que faz NewOrderServlet eu vou falar que ela vai na uri/new, quando acessar vai na servlet. 
+
+Essa a aqui a configuração, se quiser adicionar mais servlets, só adicionar, divirta-se.
+
+Escreva o código que você precisa para ter um servidor http, dentro desse servidor eu tenho vários métodos que eu posso implementar. 
+
+Se eu estender HttpServlet vai mais rápido, eu importo, aí tudo fica opcional. No nosso caso eu vou fazer da maneira mais simples que é o método do doGet.
+
+É o get do http, quando acesso uma uri seca e não vou chamar o super e faço o que eu quiser. 
+
+No meu caso eu quero criar um pedido, eu vou pegar tudo isso e jogar lá dentro; mas eu vou gerar os dispatchers. 
+
+está reclamando do order, a classe order não está aqui.
+
+Precisa da classe order, vou pegar do NewOrder essa classe porque é como a estou usando, copiar e colar. 
+
+KafkaDispatcher, preciso adicionar dependência e importar, código inteiro compilando, falta pouquinho. 
+
+Criamos KafkaDispatcher, criou dados. 
+
+Eu não quero enviar 10 pedidos de compra, se acessou via web é um pedido de compras só.
+
+Ele está reclamando do método send, que pode dar uma Exception e eu tenho que tomar cuidado, eu tenho que colocar isso no try catch.
+
+Qualquer uma dessas duas exceptions, vou deixar vazar, vou jogar servletException com esse e. 
+
+Vamos rodar, esse código o Http ecommerce service, no nosso run tem vários programas rodando, tem uns quatro serviço, eu vou limpar para ficar bonitinho. 
+
+Vou ver local host 8080/new. 
+
+Não mostrou nada e enviou as duas mensagens, fez todo o processo das mensagens.
+
+Está faltando refinar um pouco o código. 
+
+Agora que tem um servidor rodando, refina, eu tenho uma mensagem processei o que tinha de processar. 
+
+Depois disso, eu vou dar um sys out, para que no servidor veja que processo da nova compra terminado, mas como estamos escrevendo em inglês, eu vou falar New order sent successfully.
+
+Então eu tenho que ela está sendo enviada e eu quero mostrar uma resposta aqui, cada um vai ter sua maneira, a minha api, é resposta resp.getWriter, println e imprime o que quiser.
+
+Vou mandar a mesma coisa, New order sent, é a mensagem que eu vou enviar, eu poderia devolver 200, para devolver um 200 resposta setStatus eu coloco direto 200, posso restartar esse New order, HttpEcommerceService e acessar de novo.
+
+Quase lá, porque toda vez que acessa, estou enviando dados aleatórios, eu não queria, eu queria de maneira simples. 
+
+O nosso foco é mostrar que o ponto de entrada http também consegue lidar com o resto. 
+
+Vou passar um parâmetro aqui.
+
+A compra tem como parâmetro o e-mail, Guilherme@e-mail.com, tem o valor, 153 e enviar, quando chamar aqui, quero ler esses valores e eles estão no request req.getParameter email, não é mais aleatório.
+
+Depois tenho amount no BigDecimal não é aleatório, req.GetParameter amount, não é uma questão de segurança, we are not caring about any security issues, apenas how to use http as a starting point.
+
+OrderId toda vez que gera compra nova está gerando a compra nova, posso gerar de maneira o orderId, tenho os valores, crio a order e envio. 
+
+Vamos testar, reestartar.
+
+Será que enviou? 
+
+Criou o e-mail. 
+
+No Fraud Detector, 153, funcionou, por fim repara que toda vez cria um orderDispatcher e emailDispatcher, talvez você queira fazer isso através de injeção de dependências, inversão de controle, o que você quiser. 
+
+No caso de servlet tem uma maneira muito simples de fazer. 
+
+Se você usar injeção de dependência, inversão de controle, o que for, os utilize de componente.
+
+No meu caso eu vou ter aqui um método que se chama init que recebe o servidor de config e nesse método vou poder inicializar. 
+
+O educado é inicializar neste instante só se você fizer nesse instante, vai precisar de variável que não vai ser final, variável membro que não é final.
+
+Lembra, tudo que não é final, que é mutável, pode ser nulo e acarretar em vários possíveis problemas; 
+
+eu vou evitar isso eu vou diretamente colocar aqui private final e vou criar meu KafkaDispatcher, na construção da Servlet.
+
+Esse meu order e a mesma coisa no meu e-mail Dispatcher, um KafkaDispatcher de String, private final de String. 
+
+Tenho meu dois Dispatchers. 
+
+Não preciso mais desses dois trys, apago.
+
+Posso formatar, agora tem um código que inicialize uma única vez, quero destruir, apago e dou destroy, super.destroy, no destroy vou fazer orderDispatcher.close emailDispatcher, deixo rodando, faz a injeção de dependência, a inversão de controle, super simples de fazer isso.
+
+Poderia colocar umas edificações a mais, mas o básico super simples para ir direto ao ponto, envia o meu e-mail e se usuário já existe agora o Guilherme e-mail, ele não cria novamente; o FraudDetector passa 153 etc.
+
+Mas se eu passar um valor aqui muito alto, tipo 5100, agora 5100 vai ser considerado fraude, lembra. 
+
+Deu fraude, está tudo funcionando como nós queríamos. 
+
+Pode ter um starting point - um ponto de entrada ou algo do gênero, que trabalha com as mensagens para dentro, não precisa ser um método Main de command line, pode ser http, pode ser o que for e você trata com os componentes, cada um desses componentes da maneira que tiver de tratar.
+
