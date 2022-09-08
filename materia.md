@@ -81,6 +81,8 @@ terminado em
   - [cluster de brokers](#cluster-de-brokers)
     - [Single point of failure do broker](#single-point-of-failure-do-broker)
     - [Replicação em cluster](#replicação-em-cluster)
+    - [Cluster de 5 brokers e explorando líderes e réplicas](#cluster-de-5-brokers-e-explorando-líderes-e-réplicas)
+      - [consumer offset replication](#consumer-offset-replication)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4445,3 +4447,137 @@ Está funcionando, está com ele levantado, ele virou 2 em tudo.
 
 Ficou com um ponto de falha que é quando derruba o consumeroffsets por estar escrito em um único lugar como kafka armazena qual foi a última mensagem que a partição leu em um tópico se esse kafka broker cair perde a informação.
 
+### Cluster de 5 brokers e explorando líderes e réplicas
+
+O próximo passo é cuidar de algumas outras configurações, vamos no config server properties e dar uma olhada. 
+
+#### consumer offset replication
+Quando eu procurei replication existe um o replication factor para os metadados dos Tópicos; o consumer offset.
+
+Qual que é o valor que deve utilizar para qualquer coisa a não ser desenvolvimento? 
+
+**Um valor maior do que um é recomendado**. 
+
+Então por favor, coloca o valor maior do que um, porque se deixar um tem o problema de ficar dependente ainda de single point failure.
+
+Ele recomenda 3 que é o valor que você vai encontrar em algumas empresas. 
+
+A replicação em vez de um vou colocar 3, o offset vai estar com replication 3 e também o transaction.state.log.replication.factor vai colocar 3, mesmo o default.replication.factor vai colocar 3. Vamos passar a rodar 3.
+
+Vou salvar isso daqui, entrar no config tem vários arquivos server, server 2, vou remover o server dois, vou parar o dois, o zero, tudo. 
+
+Vamos criar 4, o server properties que é o padrão, toda vez que eu usar esse padrão eu vou mover esse server properties para server 1, 2, 4. 
+
+Vou pegar um e copiar como dois, vou copiar como três e vou copiar como quatro.
+
+Vou querer rodar quatro brokers e em cada um do dois em diante eu posso mudar alguma coisa, o broker id de dois é dois, o diretório do dois é esse diretório kafka2, mesma coisa para 1. O um a porta é 9091, o dois na 9092, o três na 9093.
+
+Estou rodando na mesma máquina sem problema e vou configurar o diretório como kafka três, mesmo processo para o 4, porta 9094. 
+
+Eu tenho quatro arquivos agora, parei o primeiro, segundo, parei o zookeeper.
+
+Vou remover os diretórios. ls data, não os quero, rm – fr data/kafka/* porque ele cria tudo sozinho. 
+
+Eu vou startar zookeeper, vou startar com properties um, com o dois, vou chamar o bin/kafka-server-start.sh 3. E vou ver abrir o 4 e temos quatro desses rodando.
+
+Por algum motivo ele não pegou quatro, sempre no um, dois e três. 
+
+Eu os levantei com o IntelliJ rodando, como isso vai acontecer ao mesmo tempo, startei os brokers com os programas rodando, ele criou nos brokers que estavam disponíveis. 
+
+Vamos rodar o CreateUserService. Maravilha! 
+
+Vou rodar o LogService, vou rodar o e-mail service, vou rodar o FraudDetectorService, HttpEcommerceService.
+
+Estou com cinco programas rodando, você vai ver que cada um deles está com partições distintas e várias coisas diferentes. 
+
+Podemos conferir os tópicos novamente, todos aqui: um, dois, três. Vou enviar o enviar para o e-mail novo. 
+
+Enviei a mensagem e funcionou normal, ele está usando o nosso cluster.
+
+Se observar os tópicos de novo tem um, dois, três. 
+
+E se eu derrubar? 
+
+Porque o primeiro de toda a primeira a partição é o líder 3, vou derrubar. 
+
+Roda o tópicos e tem no 9091 todos os tópicos. 
+
+O 3 está sendo usado ainda, réplicas 3, 1, 2.
+
+Qual está atualizada? 
+
+A um e a dois, a três não está atualizada. 
+
+Afinal a 3 está caída, não está atualizada. 
+
+Nesse tópico aqui tem legal 4. Vou fazer com zookeeper 2181, tem todas as partições e o líder 1, 2, e 3. 
+
+Tem o 4, o três aqui está fora do ar.
+
+Em alguns casos um está fora do ar e o outro. 
+
+Posso levantar uma quinta máquina. 
+
+Eu copio o config/server4.properties para config/server5.properties, se observar os dados tem kafka1, kafka2, kafka3, kafka4. Vamos no config server 5 e digitar, o broker.id cinco, porta 95 e o diretório é o diretório cinco.
+
+Salvei e dou start, bin/kafka-server-start.sh, config/server5.properties. 
+
+Então vou levantar uma quinta máquina. 
+
+Mas lembra na verdade a terceira está derrubada. 
+
+Ele levantou o cinco e vamos nos tópicos, ver no zookeeper como está, ele tem um, dois, três, quatro e o cinco não está sendo usado.
+
+Posso enviar mensagem. 
+
+Se for lá vai ver que a mensagem replicou. 
+
+Será que teve réplica das mensagens? 
+
+Pode ir para os tópicos, tem o líder 1 e por aí vai. Posso tentar derrubar um dos servidores, o dois agora.
+
+Ele está notificando que está saindo fora do ar. 
+
+Vou olhar os tópicos de novo, tem aqui por exemplo um que tava no 3 e no 2 e que agora está só no um. 
+
+Esse outro aqui está no quatro, está ficando perigoso, caindo vários brokers. 
+
+O líder está de pé. 
+
+Porque se o líder cai e dermos shut down no líder, uma outra réplica que está bonita tenta virar líder - vários detalhes se é exata ou não no caso de falha para discutir depois.
+
+Acontece o um derrubou, um dos que está de pé vira líder e a comunicação continua funcionando. 
+
+Se eu rodar aqui funciona. 
+
+As mensagens vão e as mensagens chegam, porque alguém se tornou líder. 
+
+Repara como no primeiro tópico apenas um está de pé.
+
+Só um está sincronizado, vou levantar o dois, quando eu levantar esse tópico aqui o líder, o líder vai mandar informações a ele, para atualizá-lo. 
+
+Queria atualizar o 3 também, levanto e sincroniza também.
+
+Quando rolar um balanceamento, quando criar um novo tópico ele pode passar a usar o 5 também. 
+
+Então a gente tem esses sincronizados, não tem mais aquele ponto de falha único, agora tenho cinco rodando, inclusive se eu destruir o primeiro, ele notificou todos que está sendo destruído.
+
+Escolheu outros líderes; se eu destruir o segundo ele está notificando todo mundo e escolhendo outros líderes; se eu destruir o terceiro ele está notificando todo mundo e escolhendo outros líderes.
+
+Estava tudo no 1, 2, 3, 4, deveria estar no 4 as coisas. 
+
+O terceiro ainda não derrubou está rodando, tentando derrubar, tem de eleger os lideres demora um pouco.
+
+Os tópicos deu problema, tem caos que não tem mais líder, porque essas informações não estavam no quatro. 
+
+Então o ponto único de falha não existe mais o que existe são três pontos de falha, se um dois ou três derrubaram e a réplica era um, dois e três já era. 
+
+Mas não é mais um ponto único de falha.
+
+Se cada um deles está rodando de máquinas diferentes não temos mais ponto único de falha, a replicação é feita automática, o levantamento e a ressincronizacao desses dados é feito de forma automática, estou levantando os três de novo. 
+
+Fazendo de forma automática, a escolha dos lideres automática.
+
+Tudo isso é distribuído e balanceado e os lideres são escolhidos na medida em que são derrubados de novo e está replicado em algum lugar. 
+
+Levantei alguns, talvez todos e tem líderes agora distintos e as réplicas estão sincronizadas de novo.
