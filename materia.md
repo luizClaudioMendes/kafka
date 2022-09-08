@@ -80,6 +80,7 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-7)
   - [cluster de brokers](#cluster-de-brokers)
     - [Single point of failure do broker](#single-point-of-failure-do-broker)
+    - [Replicação em cluster](#replicação-em-cluster)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4312,4 +4313,135 @@ No broker não.
 Quando um broker cai só tem um. 
 
 Vamos rodar diversos brokers daqui a pouquinho.
+
+### Replicação em cluster
+O que eu quero fazer agora é levantar dois brokers, porque se um cair o outro está de pé; 
+
+agora vou deixar tudo rodando, estou com meu sistema rodando. 
+
+O que eu vou fazer é abrir uma nova janela, eu vou agora configurar um segundo servidor.
+
+Há aqui no config um server.properties para config/server2.properties, você poderia fazer isso programaticamente de diversas maneiras para automatizar a configuração, toda a parte de devops para operação, vou fazer manual para ter controle fino sobre as coisas nesse instante.
+
+O server dois eu vou editar, pode editar com qualquer editor, as configurações tem que mudar, primeiro esse tal de broker.id que é zero do nosso primeiro broker. 
+
+E ele fala que cada broker tem de ter um número inteiro único.
+
+Se o server 2 ponto properties eu vou colocar dois. 
+
+Não precisa ser um, vou colocar dois, para que fique fácil de identificar que o dois é o server 2 e assim por diante.
+
+O broker ID dois, tem o zero que é o primeiro que não tem número e dois que é o server dois. 
+
+Vamos descer, tem o diretório de logs Users/alura/Documents/guilhermesilveira/1152-kafka1, não pode usar o mesmo diretório, são brokers diferentes, aqui coloco kafka2.
+
+Porque eu sei que é o server properties 2. 
+
+Vou procurar a palavra port, por padrão é 9092 e quero colocar 9093, e tem um problema 9092 seria do número 2. Se quiser manter um padrãozinho até 9. Mas se você quiser manter o padrão não precisa, até porque estou rodando esses dois blocos na minha mesma máquina.
+
+Se minha máquina cai já era, talvez na internet as suas máquinas você vai querer rodar um broker em cada máquina, todos eles na porta 9092, cada uma diferente. Esse que é o nosso server dois eu vou rodar na 9093, salvei, fechei e agora bin/kafka/server-start.sh config/server2.properties.
+
+Vou levantar, o server dois falou que levantou, se ele levantou estou feliz, KafkaServer id=2; o Kafka está levantado e zookeeper rolando, vamos nos nossos projetos/serviços rodando.
+
+Vou enviar nova mensagem, mensagens enviadas, foram todos tratados direitinho, no Log do Kafka 1 e 2 nada novo. 
+
+Vamos brincar com os servidores, derruba o broker, derrubei. 
+
+Os serviços percebem que o broker não está disponível - não está mais comunicando, estava o tempo inteiro e de repente não conseguiu.
+
+Não conseguiu comunicar com o node zero. 
+
+Se eu levantar de novo, recupera a conexão, pega as partições e vai para frente, está continuando o processo.
+
+Vou parar todos os processos, eu quero ver os tópicos, descrevê-los, mandei descrever e temos o de compra new order tem três partições e dois estão rodando, porque que quando derrubou o primeiro ele não se conectou com o segundo?
+
+Quando derrubei o primeiro esse não tentou se conectar com o segundo, ele simplesmente desistiu, se você olhar os tópicos, apesar de três partições, a partição zero, um e dois estão localizadas no broker leader que é o zero. O zero caiu ele tem que ir para uma das réplicas que é uma cópia do líder, só tem uma que é a zero.
+
+No momento que um caiu, não adianta conectar no outro porque o outro não tem as informações. 
+
+Não adiantaria eu mover para esse daqui porque aqui o outro não tem as informações, as informações da partição zero estão no líder zero, e mais nenhum lugar só no zero e eu queria que tivesse no 2 também.
+
+Então queria replicar as partições em dois lugares, vamos rodar o CreateUserService, posso rodar por aqui também. 
+
+Vou rodar fraude, e-mail e HttpsEcommerceService, temos os quatro rodando. 
+
+Eles estão rodando, ele informa que tem 2 producers nesse cluster. 
+
+Eu posso rodar o comando topics de novo e não mudou, porque o tópico tem que ter uma replicação maior, e continua com replicação – eu poderia pegar esse tópico e alterá-lo.
+
+Vou alterar bin/Kafka-top serve também para fazer outras mudanças - mais partições, mudar a replicação; é o que farei agora, eu posso passar o bootstrap ou zookeeper e passa direto zookeper localhost:2181 e quero alter topic ECOMMERCE_NEW_ORDER quero três partições e replication factor 2.
+
+```
+bin/kafka-topics.sh --zookeeper localhost:2181 --alter --topic ECOMMERCE_NEW_ORDER --partitions 3 --replication-factor 2
+```
+
+Quero que ele replique em outro broker, tem o líder e mais um, fez, deu erro e vamos ver o que ele disse. 
+
+**O alter não pode ser feito ao fator de replicação** – que eu não consigo alterar agora. 
+
+**Quando cria o tópico tem de definir o fator de replicação.**
+
+Então vamos adicionar nova propriedade de replicação no server basics, default. replication.factor = 2 – eu fiz isso no config server properties 1, vou fazer o mesmo no 2. 
+
+Às vezes você vai querer fazer isso em produção com devops para distribuir para 10 máquinas do cluster, talvez fazer de maneira automática, manualmente quando tem dois, três, quatro, cinco não tem problema.
+
+Default replication igual a dois, tenho os dois arquivos, vou ter de parar todos, como se tivesse começando do zero, vou matar o zookeper e vou apagar os diretórios data/Kafka/* o data/zookeeper/*.
+
+Vou começar zookeper novamente, Kafka zero e vou começar o kafka2, agora que startei todos vou conferir se tem os tópicos limpos. 
+
+Confere que zookeeper e Kafka diretórios estão limpos.
+
+Não tem tópico nenhum, sistema novo que definiu replication factor de 2, 3 partições, vou rodar primeiro o LogService, depois vou rodar o FraudDetectorService, o EmailService e o HttpEcommerceService, todos se comunicando. 
+
+Se eu pedir tópicos existem já. 
+
+O tópico ECOMMERCE_NEW_ORDER tem a partição zero, um e dois porque pedimos três partições – está no líder que é zero e também com uma copia no 2.
+
+Como a réplica é dois ele sempre vai estar no dois, todas as partições estarão nos dois. 
+
+Se um por um acaso cair tem informação no outro legal. 
+
+A partição diz o número da partição, o líder quem é o principal para onde é feito o write, a escrita das mensagens e o líder replica para réplica, caso líder caia a gente tem as réplicas sobrevivendo.
+
+Vou testar, rodar, vamos enviar uma mensagem, recebi as mensagens, o CreateUserService tem de rodar, vou rodar, vou enviar novo email e recebeu o novo email. 
+
+Todos funcionando, se mandar uma terceira mensagem teste, o que falta é ir nos nossos Kafkas, temos dois.
+
+Vamos limpar, mata esse zero, estou derrubando, se eu dou um Kafka-topics já derrubou, o kafka fala que não consegue conectar no 9092, claro, eu dei um kafka-topics no 92, vou dando 9093. 
+
+No 9093 ele falou o líder agora é o dois, todos os tópicos para todas as partições. 
+
+Como ele tinha uma réplica e a réplica estava atualizada, ele virou líder de tudo.
+
+O zookeper e o kafka decidiram que ele é líder de tudo porque não tinha mais ninguém para ajudar. 
+
+Aqui que você vai escrever, todos os nossos “caras” agora estão conectados, mas não mas o 92 não dá mais para estar conectado no 92.
+
+Vamos tentar enviar de novo, HttpEcommerceService enviou mais uma, tudo sendo enviado, e-mail, envia mais uma eu tenho agora mais, FraudDetector, e-mail, esse http ecommerce, LogService, sendo logado. 
+
+Com isso vimos que é capaz de derrubar kafka e o cluster continua de pé porque tem um outro rodando.
+
+Vou rodar de novo esse primeiro, vou tentar, mas antes dá uma olhadinha aqui nos tópicos. 
+
+se olhar os tópicos vai ver que realmente o líder agora é o dois na maior parte das coisas, mas tem algumas coisas que o líder está none - não tem líder.
+
+Só tinha informação na réplica zero, então para algumas coisas não deu certo, porque até qual mensagem que eu já li estava sendo armazenado somente em um lugar. 
+
+Alguns deles não vão funcionar, CreateUserService está travado.
+
+Eu teria de levantar de novo e ver ele se recuperar. 
+
+O CreateUserService levantou e executou, voltou a executar, assumiu e voltou executar aqui no meio. 
+
+Agora ele volta executar, se for lá nos tópicos tem líder em tudo de novo.
+
+O líder ficou dois em todos eles e ele faz o backup no 0. 
+
+**Isr** são quais são as réplicas que estão atualizadas até esse instante; as duas réplicas estão super atualizadas. 
+
+Se eu rodar de novo mais uma compra vai ver que recebe a mensagem nova.
+
+Está funcionando, está com ele levantado, ele virou 2 em tudo. 
+
+Ficou com um ponto de falha que é quando derruba o consumeroffsets por estar escrito em um único lugar como kafka armazena qual foi a última mensagem que a partição leu em um tópico se esse kafka broker cair perde a informação.
 
