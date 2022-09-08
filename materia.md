@@ -78,7 +78,8 @@ terminado em
       - [Jetty como servidor http](#jetty-como-servidor-http)
     - [Fast delegate](#fast-delegate)
     - [O que aprendemos?](#o-que-aprendemos-7)
-  - [](#)
+  - [cluster de brokers](#cluster-de-brokers)
+    - [Single point of failure do broker](#single-point-of-failure-do-broker)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4232,4 +4233,83 @@ Assim, não vou me preocupar com esse caso, NewOrderMain, ficou mais um teste no
 * como enviar mensagens a partir do servidor http
 * a vantagem de um fast delegate
 
-## 
+## cluster de brokers
+### Single point of failure do broker
+Chegamos em ponto bem interessante, temos diversos serviços que somos capazes de rodar e mantermos rodando. 
+
+Então quer dizer que se eu quiser deixar rodando dois HttpEcommerceService numa máquina e outro em outra máquina é possível.
+
+Um em uma porta e outro em outra porta, também. 
+
+Na verdade o jetty já é multi trajeto, já é capaz de receber várias requisições simultâneas. 
+
+Se eu quiser rodar dois CreateUserServices, maravilha. 
+
+Se eu quiser rodar 10 FraudDetectorServices, maravilha. 
+
+O CreateUserServices como estou usando um banco em disco através de uma maneira específica sqlite eu só vou se for dar um por vez.
+
+Mas se você tivesse acessando um outro banco também, se eu tiver acessando o FraudDetectorService que é 15 rodando, também. 
+
+LogService três, maravilha, e-mail service 18, também.
+
+Cada um desses consumer groups vai consumir em paralelo, no máximo o número de partições que existem naquele tópico, se NewOrder tem três partições eu posso tomar três FraudDetectorService no mesmo consumer grupo e cada um vai pegar um; o quarto vai ficar parado sem fazer nada.
+
+Tem três pelo menos, poderia deixar um para caso algum caia rapidamente. 
+
+Mas também você iria querer detectar que um caiu para restartar, fazer coisas do gênero na parte de operações. Três para três certo.
+
+Você vai querer ter as partições e número de consumers igual das partições, por exemplo, para paralelizar ao máximo. 
+
+O status do servidor é visto no terminal, tinha vários comandos que ajudavam, um dos comandos era para verificar a situação dos tópicos.
+
+Era bin/Kafka-topics.sh e eu pedia para descrever no nosso bootstrap-server que é o nosso localhost:9092, ele falou de vários tópicos, o tópico ECOMMERCE_ORDER_APPROVED tem três partições, a zero, um e dois. O ECOMMERCE_SEND_EMAIL tem três partições, ECOMMERCE_ORDER_REJECTED também.
+
+O Kafka está pingando e pedindo essas informações, consegue perguntar dessa maneira, tem o comando para entender do consumer groups, mas estou interessado nos tópicos.
+
+Agora eu quero dar uma olhadinha nos tópicos o que acontece se eu derrubar o meu Kafka? 
+
+Vou derrubá-lo. 
+
+Vou limpar tudo, deixei rodando. 
+
+Inclusive o HttpEcommerceService, mas ele está falando que não conseguiu conexão na porta 9092.
+
+O broker deve estar indisponível. 
+
+Por mais que os services possam ter mais de uma instância de entrada e de saída, o ponto de falha não é único, o broker é único.
+
+E se eu tentar enviar uma mensagem agora. 
+
+Tentei, o nosso send foi implementado com a função chamada do get que espera sucesso ou fracasso, está esperando e travou. 
+
+A abordagem não está correta; 
+
+depois veremos muitos tratamentos de erro, mas quero discutir o ponto de falha, broker.
+
+Vou levantar o Kafka broker, o HttpsEcommerceService percebeu, despachou para os tópicos e o CreateUserService percebeu que ele levantou fez de novo rebalanceamento das partições e falou as três partições são para mim, porque só tenho eu no meu consumer group.
+
+Pegou, recebi uma mensagem, processou, o FraudDetectorService que já estava rodando, mesma coisa, percebeu que o broker levantou e fez. 
+
+Todos eles “se viraram” com a queda e o levantamento no nosso broker de novo.
+
+Mas ainda ficou com a falha, se eu tenho 2 log Services rodando, pode pegar o LogService e mandar rodar, vou no Edit Configurations, LogService, copia e o criou outro (1).
+
+Dou ok e vou querer rodar o LogService 1, agora quando logar o LogService 1 ele estará com algumas partições e o outro com outras partições, pegou quatro partições. Agora rodo de novo uma mensagem.
+
+Disparo e aparece nos nossos LogsServices, esse recebeu ECOMMERCE_ORDER_REJECTED, o ECOMMERCE_SEND_EMAIL e o ECOMMERCE_NEW_ORDER. E o outro não recebeu nada, vou rodar novamente com outro e-mail.
+
+E-mail é a chave das nossas mensagens. Agora veio nesse LogService, maravilha. Está funcionando, se um Log Service cai, se eu derrubar esse LogService outro LogService vai assumir, daqui a pouquinho ele vai assumir as partições novas.
+
+Ele tem que assumir as partições novas porque alguém vai lidar com as partições que caíram, peguei aqui todas as partições.
+
+Então agora se eu chamar para esse e-mail, para esse e-mail ou para outro, todos vão cair no nosso LogService. 
+
+Como eu tenho dois serviços desse rodando, não tem single point of failure, se um cai o outro assume. 
+
+No broker não. 
+
+Quando um broker cai só tem um. 
+
+Vamos rodar diversos brokers daqui a pouquinho.
+
