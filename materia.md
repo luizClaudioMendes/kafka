@@ -88,6 +88,7 @@ terminado em
         - [ACKS = 0](#acks--0)
         - [ACKS = 1](#acks--1)
         - [ACKS = all](#acks--all)
+  - [O que aprendemos?](#o-que-aprendemos-8)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4731,3 +4732,13 @@ Você quer, coloca mais rápidas, quer ter cinco, sete, você vai perceber no se
 Para que você sempre tenha pelo menos duas, rodando. 
 
 Trabalhar com o número de partições, número de réplicas e acks all para o máximo de reliability de segurança de que os dados estão em algum lugar e serão consumidos.
+
+## O que aprendemos?
+* o problema do single point of failure
+* a recuperação mais simples de um broker
+* a recuperação e o rebalanceamento de um serviço
+* como levantar mais um broker e rodar um cluster
+* como efetuar a replicação
+* o que é um líder
+* a configuração do acks 0, 1 e all
+* como utilizar garantias, reliability, velocidade, partições e replicação
