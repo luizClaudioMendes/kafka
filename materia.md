@@ -83,6 +83,11 @@ terminado em
     - [Replicação em cluster](#replicação-em-cluster)
     - [Cluster de 5 brokers e explorando líderes e réplicas](#cluster-de-5-brokers-e-explorando-líderes-e-réplicas)
       - [consumer offset replication](#consumer-offset-replication)
+    - [Acks e reliability](#acks-e-reliability)
+      - [configurar os ACKS](#configurar-os-acks)
+        - [ACKS = 0](#acks--0)
+        - [ACKS = 1](#acks--1)
+        - [ACKS = all](#acks--all)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4581,3 +4586,148 @@ Fazendo de forma automática, a escolha dos lideres automática.
 Tudo isso é distribuído e balanceado e os lideres são escolhidos na medida em que são derrubados de novo e está replicado em algum lugar. 
 
 Levantei alguns, talvez todos e tem líderes agora distintos e as réplicas estão sincronizadas de novo.
+
+### Acks e reliability
+Vimos como é interessante o Kafka de trabalhar com replicação de forma simples, com cluster de broker de forma simples, de trabalhar com líderes e réplicas de uma forma simples. 
+
+Simples, comparado com a complexidade toda seria fazer tudo isso na “unha”. 
+
+Simplificado comparado com o que poderia ser feito.
+
+Não quer dizer que é simples como tocar um “tomar um suco de maracujá”. 
+
+Vamos tentar detectar mais um caso complicado de falha, o que acontece se eu tenho o meu código, meu sistema rodando, eu envio uma mensagem e a mensagem chega no líder, mas as réplicas estão caídas.
+
+Elas não estão lá, elas estão fora. 
+
+Imagina que eu envio, tenho cinco máquinas rodando meu cluster, quatro delas saíram do ar e eu envio a mensagem e a mensagem chega nessa uma única e não replicou ainda. 
+
+Antes desse um levantar e poder replicar para cá, essa máquina cai e perde os arquivos e aí essa outra levanta - ela está com o estado antigo, ela não está com o estado novo.
+
+Porque não deu tempo da máquina que caiu enviar as informações para réplica. 
+
+Lembra que estamos com réplica três, independente de ter cinco máquinas. 
+
+Outra situação é a nossa máquina líder recebe a mensagem, o líder escreve estou sabendo; vou mandar replicar. 
+
+O líder avisa, escrevi aqui vou mandar replicar.
+
+Assume que já foi escrita a mensagem, que alguém poderá consumi-la, mas nesse meio tempo o líder cai, está escrito no disco, mas o líder não sincronizou com as réplicas e as réplicas não ficaram sabendo da mensagem que chegou.
+
+Daqui a pouquinho uma das réplicas percebem que o líder está fora do ar e uma delas vira líder com as mensagens antigas, sem aquela mensagem. 
+
+Tem duas situações que eu citei – uma em que as réplicas caíram e outra em que o líder e as réplicas vão se tornar líderes sem ter as informações mais recentes.
+
+Porque nós que enviamos uma mensagem, HttpEcommerceService, quando enviamos a nossa mensagem, no send, chamamos um get e ele retornou quando o líder ficou sabendo que estava tudo ok.
+
+O mais seguro é esperar o líder mandar para as réplicas e elas confirmarem, é lento. 
+
+Porém você tem mais garantia, um pouco de troca da velocidade com as garantias que você quer ter. 
+
+Eu quero ter garantia que tudo é executado exatamente numa ordem, então tem de ser serializado.
+
+Um depois do outro. 
+
+Eu quero ter garantia de que se um cai, as informações estão em outro lugar, então quando você envia a mensagem você só vai ter o ok, quando a mensagem for replicada nas réplicas. 
+
+#### configurar os ACKS
+Configura isso no Dispatcher, tem uma propriedade, set properties, producerConfig.ACK, os oks do servidor, quantos eu quero ter? 
+
+O número de acknowledgments que o producer quer do líder para ter certeza de que o request foi completado.
+
+Eu quero quantos? 
+
+##### ACKS = 0
+Aqui você tem os valores que você pode colocar acks = 0 se você for certo pode ser um arquivo de configuração ou a gente conversão, então **o produtor não vai esperar, manda mensagem e nem espera o líder dizer que está ok**. 
+
+Há mensagens que se você realmente não vai lidar, não vai se preocupar.
+
+Não estou nem aí se eu devo escrever ou não só quero mandar mensagem e perder uma outra azar. 
+
+Pode ser, pode ter situações assim, você vai por zero e é mais rápido, você sai processando, ele vai automaticamente adicionar no socket e acabou; vai ser considerado que foi enviado, nem necessariamente foi enviado.
+
+**Não existe garantia de que o servidor recebeu**. 
+
+E a configuração de retries que o servidor fica retentando se não está lá vai ser ignorada, porque se ele não recebeu, tudo bem, é isso que você está dizendo com acks zero.
+
+Em geral você não fica sabendo das falhas. 
+
+##### ACKS = 1
+Existem outras configurações, acks=1, quer dizer que **o líder vai escrever no log local, o líder não vai esperar que as réplicas tenham recebido a mensagem e confirmado**. 
+
+Um significa isso.
+
+Se o líder, recebeu, gravou e falhou, as réplicas não ficaram sabendo, será perdida essa informação. 
+
+##### ACKS = all
+E acks igual a all significa que **o líder vai esperar todas as réplicas que estão sync, todas elas estão sincronizadas, todas elas receberam essa informação, agora eu posso confirmar que a sua mensagem foi enviada**.
+
+Se líder cair as réplicas têm essa informação. 
+
+Quero usar acks config all, eu vou esperar todas as réplicas terem essa informação. 
+
+Uma configuração super simples provavelmente o seu use case padrão vai querer isso, porque você provavelmente quer garantia de que se um cair está com o outro a mensagem está na réplica.
+
+Você pode deixar o seu programador sobrescrever essa propriedade da maneira que quiser. 
+
+Você quer um valor padrão para toda a empresa, para todo seu projeto. 
+
+No nosso caso eu quero garantir que a mensagem esteja em pelo menos mais dois lugares, três lugares.
+
+Porque os meus tópicos têm por padrão replication factor três, dessa maneira garante, só isso porque que agora o send.get vai esperar o acks do líder - falar as réplicas já foram sincronizadas, na verdade pode parar, reestartar o nosso HttpEcommerceService, agora ele já está usando essa configuração nova e vai esperar as outras réplicas.
+
+Se rodar uma vez, new order send, vou olhar o tópico de New Order está aqui, está no líder um, dois, três, e logo depois derrubar o três, fiquei só com um então só vai estar na um. 
+
+Enquanto está na um, a única que está em sync é ela. 
+
+O líder virou a um. 
+
+Agora eu posso tentar enviar uma nova mensagem, enviei.
+
+O que aconteceu foi que ele enviou e quem estava em sync era a um, recebeu essa mensagem. 
+
+Se tentarmos ver o consumer groups, bin/kafka-consumer-groups, todos os grupos de 90 e 92, 91 está de correto. 
+
+Temos vários consumers grupos.
+
+Por exemplo, o CreateUserService que está consumindo EcommerceNewOrder, partição zero, um e dois. 
+
+O offset está zero mensagens. 
+
+Por mais que esteja pedindo acks all, significa que todas as réplicas que estão em sync elas vão esperar, wait for the full set of in-sync replicas to ackowledge the record.
+
+Estou esperando quem está em sync confirmar. 
+
+Apenas uma está em sync, se só tem uma, ela confirmou, as outras pessoas já consumiram, se mandar de novo, estava na cinco, consumer groups, vamos ver agora current offset, seis.
+
+Já consumiu as seis, então o ponto seria se ela escrever, mas não receber a confirmação de outro aí eu quero saber o que vai acontecer. 
+
+Eu posso tentar forçar levantar a dois, vai voltar ficar em sync nesse topic, aqui uma 2 em sync, a líder é a 1 e a 2 em sync.
+
+Eu posso enviar mensagem, mas já está derrubando o servidor, então vou pegar esse meu colega vou mandar um groups para ver a situação, zero, seis, seis, dou stop e refresh, a mensagem foi enviada. 
+
+Agora que derrubei, o dois nem está aqui, mas a mensagem foi consumida.
+
+Foi consumida porque estava na 1 e a 1 enviou. 
+
+A um tinha informação para que o nosso consumidor consumisse. 
+
+Espera mais máquinas consumirem isso, dessa maneira, com o acks garante um pouco mais. 
+
+Mas para acks fazer sentido, ser valioso não dá para ficar rodando com uma só máquina e as outras paradas.
+
+Quando uma máquina cai você quer o mais rápido possível levantá-la, quando o serviço de um consumer group etc. você quer o mais rápido possível levantar, porque você levantando logo o acks all precisa confirmar as três, não só uma pessoa, se você deixa cair até para ficar uma, o acks all e o de um é a mesma coisa, não tem graça.
+
+Porque só vai confirmar ele mesmo, não tem problema de uma das três réplicas caírem. 
+
+Lembra que a réplica é fundamental, o número de réplicas que você tem é a garantia que você vai ter se você colocar acks all, se seu acks for de um só mesmo tendo réplicas, você vai ter situação que a garantia é de uma só.
+
+Resumindo se eu tenho n réplicas, eu só vou ter a garantia das n réplicas se o meu acks for all, se for um eu tenho n réplicas, mas eu vou receber uma confirmação sendo que só uma delas ficou sabendo, mesmo no acks all pode acontecer isso, mas só se todas exceto uma estiverem de pé e isso raramente vai acontecer.
+
+Por que quando uma cai você levanta ela de novo, raramente vai acontecer de você ter uma única máquina de pé para um consumo grupo e uma partição. 
+
+Você quer, coloca mais rápidas, quer ter cinco, sete, você vai perceber no seu sistema quantas precisa de acordo com o número de falhas que você vai ter que para que não caia na situação de uma única réplica.
+
+Para que você sempre tenha pelo menos duas, rodando. 
+
+Trabalhar com o número de partições, número de réplicas e acks all para o máximo de reliability de segurança de que os dados estão em algum lugar e serão consumidos.
