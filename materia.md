@@ -89,6 +89,9 @@ terminado em
         - [ACKS = 1](#acks--1)
         - [ACKS = all](#acks--all)
   - [O que aprendemos?](#o-que-aprendemos-8)
+- [kafka: batches, correlation ids e dead letters](#kafka-batches-correlation-ids-e-dead-letters)
+  - [Batch](#batch)
+    - [Simulando a geração de relatórios](#simulando-a-geração-de-relatórios)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4742,3 +4745,148 @@ Trabalhar com o número de partições, número de réplicas e acks all para o m
 * o que é um líder
 * a configuração do acks 0, 1 e all
 * como utilizar garantias, reliability, velocidade, partições e replicação
+
+# kafka: batches, correlation ids e dead letters
+## Batch
+### Simulando a geração de relatórios
+Tenho vários pequenos projetos no meu sistema de e-commerce. 
+
+Até agora, tudo que fizemos tem se baseado numa requisição que executa uma tarefa para um usuário. 
+
+Até fizemos no servidor http uma classe capaz de trabalhar com uma requisição que cria uma nova compra.
+
+Eu queria fazer um processo que executa várias tarefas de uma vez só. 
+
+Uma coisa que podemos fazer é o relatório mensal que envio para os meus usuários. 
+
+Se o e-commerce é de PDF de livros online, eu poderia gerar um relatório de leitura mensal. 
+
+Se o usuário quiser, ele pode pedir esse relatório, e no final do mês geramos para todos.
+
+Eu queria ver o processo de batch. 
+
+Como executo vários de uma vez. 
+
+O quão diferente seria. 
+
+Vai ser bem simples. 
+
+Primeiro, quero gerar um relatório de estudo. 
+
+Vou ter um serviço novo. 
+
+Crio em novo módulo. 
+
+Meu padrão é serviço alguma coisa. 
+
+Tenho meu relatório de leitura, que é o reading report. 
+
+Dentro, posso criar meu serviço, que recebe uma mensagem dizendo querer um relatório para aquele usuário.
+
+Como outros serviços que temos. 
+
+Eu poderia usar um deles como base. 
+
+Vou usar o fraude detector service. 
+
+Ele usa o pedido de compra para detectar se tem fraude. 
+
+Vou copiar o pacote inteiro. 
+
+Primeiro, criamos, instanciamos esse objeto para inserir o report services. 
+
+Tem que importar o projeto, adicionar dependência. 
+
+Ele vai estar escutando pedidos de relatório. 
+
+É user reading report. 
+
+Agora é um pedido de geração. 
+
+Vamos só receber os dados. 
+
+Depois, gerar um relatório e fazer algo.
+
+O relatório está ligado a um usuário. 
+
+Temos a classe user? 
+
+Ainda não. 
+
+A classe está ligada a cada projeto. 
+
+Esse user é desse projeto. 
+
+Preciso aqui o user, em que vamos definir o id ou e-mail. 
+
+Vou deixar apresentado como string.
+
+Gostamos de simular essas coisas, para ver. 
+
+Eu queria pegar um arquivo que tivesse o modelo do meu txt do meu relatório. 
+
+Dentro do Resources, vou criar um novo arquivo. 
+
+Seria informações básicas.
+
+Vou pegar esse modelo, esse arquivo, que é um new file. 
+
+Vou usar o path relativo para buscar. 
+
+Vou chamar isso de source. 
+
+Quero copiar esse arquivo para algum diretório.
+
+Se eu dou enter, não existe o IO. 
+
+Vou ter que criar em outro arquivo. 
+
+Ele é baseado no usuário. 
+
+O path para esse cara vai ser simples, vai ser o target, um arquivo com uuid mais report txt.
+
+Quero copiar para IO. 
+
+Ele recebe um path, um target. 
+
+Quero garantir que esse diretório existe. 
+
+Vou pegar o diretório pai e vou pegar os diretórios necessários. 
+
+Depois, digo para copiar do sourcing para o target. 
+
+Só que se já existir, vou pedir para sobrescrever.
+
+Agora quero dar um append nesse arquivo. 
+
+Quero adicionar uma linha. 
+
+Falo files.write. 
+
+Nesse arquivo, vou escrever o conteúdo e falo que quero adicionar o append. 
+
+Seria o processo de gerar o relatório que você quer gerar.
+
+Terminei de gerar o relatório, quero notificar os usuários. 
+
+Eu poderia enviar um e-mail com esse relatório. 
+
+Podemos fazer um processo.
+
+Conseguimos ler e enxergar algo em disco. 
+
+O pedido pode vir de um usuário só, mas eu queria fazer o patch. 
+
+Vamos ter que fazer isso de alguma maneira.
+
+Agora vamos precisar de outro serviço, capaz de gerar as mil mensagens. 
+
+Vou fazer isso no http. 
+
+Vou assumir que teremos uma parte de admin. 
+
+Essa parte deve ficar onde? 
+
+Não tem resposta exata. 
+
+No nosso caso, vamos manter no mesmo servidor http.
