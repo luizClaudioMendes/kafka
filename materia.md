@@ -95,6 +95,8 @@ terminado em
     - [Generalização de processo de batch assíncrono e http fast delegate](#generalização-de-processo-de-batch-assíncrono-e-http-fast-delegate)
       - [fast delegate](#fast-delegate-1)
     - [Batch assíncrono em execução](#batch-assíncrono-em-execução)
+    - [O que aprendemos?](#o-que-aprendemos-9)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5127,3 +5129,13 @@ ele gera os relatórios, com o id do usuário para o qual ele foi criado.
 Tudo de forma assíncrona. 
 
 Criei um serviço que replica para todos os usuários do seu sistema
+
+### O que aprendemos?
+
+* criando um novo serviço que faz IO
+* consideramos o acesso a disco como serviço externo
+* diversas formas de trabalhar batch
+* usando o batch com http fast delegate
+* usando um processo assíncrono e mantendo o isolamento do banco de usuários
+
+## 
