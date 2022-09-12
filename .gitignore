@@ -51,3 +51,4 @@ ecommerce/service-email/target/*
 ecommerce/service-fraud-detector/target/*
 ecommerce/service-log/target/*
 ecommerce/service-new-order/target/*
+ecommerce/service-reading-report/target/*

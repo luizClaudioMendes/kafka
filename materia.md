@@ -94,7 +94,7 @@ terminado em
     - [Simulando a geração de relatórios](#simulando-a-geração-de-relatórios)
     - [Generalização de processo de batch assíncrono e http fast delegate](#generalização-de-processo-de-batch-assíncrono-e-http-fast-delegate)
       - [fast delegate](#fast-delegate-1)
-    - [](#)
+    - [Batch assíncrono em execução](#batch-assíncrono-em-execução)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5102,4 +5102,28 @@ No body da mensagem quem vai estar é o próprio usuário.
 
 Ele vai invocar isso mil vezes, cem vezes, e para cada ele vai executar o gerador de relatório.
 
-### 
+### Batch assíncrono em execução
+Vamos testar o que a gente criou até agora. 
+ 
+Para isso, vamos rodar alguns serviços. 
+Vou rodar o http. Ela vai ter a requisição para gerar vários relatórios. 
+
+Vou rodar o reading report services, e vou rodar o create user service. 
+
+Vamos precisar do back send service, porque ele que fica escutando o tópico para mandar para todo mundo.
+
+Tenho os três rodando. 
+
+Além disso, nossos colegas vão tentar se conectar com o Kafka que está rodando agora. 
+
+Vou testar. 
+
+Ele enviou uma mensagem. 
+
+Para cada usuário, ele enviou uma mensagem.
+
+ele gera os relatórios, com o id do usuário para o qual ele foi criado. 
+
+Tudo de forma assíncrona. 
+
+Criei um serviço que replica para todos os usuários do seu sistema
