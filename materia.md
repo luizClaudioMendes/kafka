@@ -92,6 +92,9 @@ terminado em
 - [kafka: batches, correlation ids e dead letters](#kafka-batches-correlation-ids-e-dead-letters)
   - [Batch](#batch)
     - [Simulando a geração de relatórios](#simulando-a-geração-de-relatórios)
+    - [Generalização de processo de batch assíncrono e http fast delegate](#generalização-de-processo-de-batch-assíncrono-e-http-fast-delegate)
+      - [fast delegate](#fast-delegate-1)
+    - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -4890,3 +4893,213 @@ Essa parte deve ficar onde?
 Não tem resposta exata. 
 
 No nosso caso, vamos manter no mesmo servidor http.
+
+### Generalização de processo de batch assíncrono e http fast delegate
+Nosso próximo passo é ser capaz de receber uma requisição http que gera todos os relatórios. 
+
+vamos ter um generate all reports servlet. 
+
+E esse vai ser o admin generate.
+
+Precisamos criar essa servlet. 
+
+É o mesmo esquema que o new order servlet. 
+
+Só mandamos o usuário que vamos gerar, então é um user dispatcher. 
+
+Precisamos puxar a classe user. 
+
+Nesse outro projeto ela só precisa do id.
+
+No doGet, não vou ler parâmetro. 
+
+Quero fazer um for para cada usuário dentro de todos os usuários. 
+
+Vamos no nosso reading report services e vamos mandar nesse tópico o nosso usuário. 
+
+Posso enviar o id dele, porque assim garanto que se tiver dois usuários com o mesmo id, eu ia executar um depois do outro. 
+
+Mas se um usuário pedir três relatórios, eu executo o segundo relatório daquele usuário só depois de terminar o primeiro, assim um não tem preferência em relação ao outro sem querer.
+
+Só falta ter acesso a todos os usuários. 
+
+É verdade. 
+
+Só que lembram que lá atrás eu falei de uma sacada do http que é importante? 
+
+Você quer delegar para alguém, porque se de repente o servidor cai no meio, você gerou metade só. 
+
+E não tem nem como controlar, porque a pessoa vai atualizar na tela dela. 
+
+Enquanto na mensagem não. 
+
+Como nós vamos gerar, temos mais controle.
+
+O que fazer quando temos um serviço de http? 
+
+#### fast delegate
+Damos a resposta o mais rápido possível. 
+
+Delega esse trabalho para alguém e dá uma resposta. 
+
+Nós temos algumas abordagens. 
+
+Uma seria já dar o ok e disparar uma única mensagem falando gere todos os relatórios. 
+
+É o caminho.
+
+Alguém vai escutar isso. 
+
+Vai pegar todos os usuários e para cada usuário disparar a mensagem. 
+
+Como nosso usuário final já sabe que o processo está sendo executado, não vai dar F5. 
+
+Claro que o serviço pode parar no meio, e vamos lidar com isso de diversas maneiras. 
+
+O que eu queria parar para pensar é quem vai ficar escutando as mensagens? 
+
+Em qual desses projetos devemos colocar alguém escutando?
+
+Poderíamos colocar no service reading report. 
+
+Podemos colocar alguém que se chama generate all reports service, que vai escutar essa única mensagem e fazer o for para todos os usuários. Minha pergunta é se esse serviço tem acesso ao id de todos os usuários. 
+
+Não tem. 
+
+Como faço para ele ter?
+
+Ou esse serviço pergunta para outro, faz uma requisição http, demora, mas recebe. 
+
+É uma abordagem. 
+
+Outro caminho é perguntar para outro serviço quais são os ids, só de maneira assíncrona ficaria esperando. 
+
+Ele poderia enfiar a mão no banco de dados desse outro serviço create users. 
+
+É válido. 
+
+É feio, porque você criou uma ligação que não é mais só o esquema e semântica do tópico das mensagens. 
+
+O que liga os serviços hoje é a semântica do tópico das mensagens, o que significa o tópico. 
+
+A chave, que vai dizer se ele está em paralelo ou se é aninhado. 
+
+E o esquema da mensagem. 
+
+Se eu fizer isso, estou ligando atrás do banco de dados. 
+
+Aí volto a trabalhar naquela história de todos acessarem o mesmo banco e seus problemas.
+
+Ou eu poderia eu mesmo ter uma lista desses usuários. 
+
+Toda vez que um novo usuário é criado, disparo uma mensagem dizendo que temos um usuário novo, com o id do usuário. 
+
+Se eu tenho um serviço que quer manter atualizados todos os ids dos usuários, não tem problema. 
+
+Você entraria em um problema de réplica se precisar apagar um id. 
+
+Mas repare que o vínculo dos serviços passou a ser também o que eles estão interessados e outras coisas do gênero. 
+
+É uma abordagem.
+
+Vamos para outra. 
+
+A quarta abordagem é fazer com que nosso generate mande uma mensagem que diz que para todos os usuários quero executar uma mensagem. 
+
+Mando uma mensagem do tipo taskdispatcher, que vai ser executada para todos os usuários. 
+
+Posso ter um dispatcher que vai executar algo para todos os usuários. 
+
+Ele vai pegar e enviar uma mensagem para todos.
+
+Eu vou fazer dessa maneira, para vermos tudo feito por mensagens. 
+
+O tópico da mensagem vai ser o user generate read report. 
+
+Tenho um único serviço que escuta isso, faz o for para cada usuário e para cada um envia essa mensagem. 
+
+Se você tiver que gerar outra tarefa para todos os usuários, é só chamar esse aqui e a mensagem que você quer executar.
+
+Dessa maneira, não mantive uma réplica de todos os ids comigo e não perguntei de maneira assíncrona perguntar para todos os usuários. 
+
+Está sendo de maneira síncrona. 
+
+Não vou perguntar, vou notificar.
+
+Vamos precisar do dispatcher. 
+
+Repare que não é mais de usuário. 
+
+É simples, que manda o tópico. 
+
+Vou chamar de batch dispatcher, que simplesmente executa para todo mundo. 
+
+A chave vou usar a mesma, porque só tem uma.
+
+Preciso em algum serviço que tem acesso ao banco receber essa mensagem. 
+
+Posso criar um novo serviço aqui dentro. 
+
+Esse cara vai precisar abrir uma conexão com o banco, do método main, do parse. 
+
+No método main, ele cria o serviço.
+
+Temos que tomar cuidado com o tipo de classe que ele recebe. 
+
+Não iremos trabalhar com o usuário, mas com uma string. 
+
+Quem também recebe string é o de e-mail. 
+
+Quando eu receber essa mensagem quer dizer processem new batch. 
+
+O batch é para o tópico. 
+
+O tópico para o qual vou mandar tudo. 
+
+Tiro o for dali e jogo em outro lugar. 
+
+Para cada usuário vou enviar essa mensagem agora.
+
+O fraude detector é um serviço que tem um dispatcher. 
+
+A gente simplesmente criou um e usamos. 
+
+É a mesma coisa. 
+
+Ele vai para cada usuário, pega o id e manda gerar o relatório. 
+
+Tínhamos colocado o user no http e-commerce, mas precisamos dele aqui no nosso service users.
+
+Faltou pegar todos os usuários. 
+
+Preciso de um getallusers. 
+
+Fazemos isso da mesma forma que com o banco. 
+
+Ele vai passar por cada um dos usuários. 
+
+Só para lembrar, o users tem um campo chamado uuid. 
+
+Então, seleciono uuid dos usuários. 
+
+Só isso. 
+
+Isso devolve para nós os results.
+
+Vou ter uma lista de usuários. 
+
+Poderia usar a lista de string? 
+
+Poderia, você não precisaria de um modelo, funcionaria. 
+
+A sacada foi que o http e-commerce service tem uma requisição possível que bate e envia diretamente o fast delegate. 
+
+Para cada um dos usuários, quero que você mande a mensagem. 
+
+Ele vai fazer um for para cada um e um send message. 
+
+No body da mensagem quem vai estar é o próprio usuário. 
+
+Ele vai invocar isso mil vezes, cem vezes, e para cada ele vai executar o gerador de relatório.
+
+### 
