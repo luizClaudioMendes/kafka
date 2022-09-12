@@ -96,7 +96,9 @@ terminado em
       - [fast delegate](#fast-delegate-1)
     - [Batch assíncrono em execução](#batch-assíncrono-em-execução)
     - [O que aprendemos?](#o-que-aprendemos-9)
-  - [](#)
+  - [Serializaçao e deserialização customizada](#serializaçao-e-deserialização-customizada)
+    - [A importância de um CorrelationId](#a-importância-de-um-correlationid)
+    - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5138,4 +5140,34 @@ Criei um serviço que replica para todos os usuários do seu sistema
 * usando o batch com http fast delegate
 * usando um processo assíncrono e mantendo o isolamento do banco de usuários
 
-## 
+## Serializaçao e deserialização customizada
+### A importância de um CorrelationId
+Por mais que estejamos trabalhando com várias seguranças, do tipo “consigo derrubar e levantar de novo”, existem várias situações de falha ainda. 
+
+Vimos agora há pouco várias exceptions. 
+
+Colocar o serviço no ar é uma coisa. Lidar com os erros é outra. 
+
+Entender por que aconteceu uma exception dentro do reading report service, saber o caminho pode ser muito importante para saber o que está acontecendo com o sistema.
+
+Eu gostaria de alguma maneira relacionar o código que está sendo executado com a mensagem que foi enviada, com a requisição http que o usuário fez. 
+
+Eu queria que tudo fosse sempre armazenado na mensagem, porque quero ter certeza de que toda a informação está presente para mim a qualquer instante. 
+
+Para entender o caminho inteiro, temos que de alguma maneira ir passando essa informação para frente. 
+
+Eu queria de alguma maneira falar que estou com um id x, porque a requisição é tal, e o número é passado para lá. 
+
+Com a requisição e a mensagem é o que gera a mensagem. 
+
+O que vai chegar no reading report é a informação.
+
+Para fazer isso, tenho um desafio. 
+
+Preciso que esses caras tenham um id. 
+
+Não só um id simples, mas que crie uma relação entre todas as mensagens. 
+
+Vamos criar o correlation id, uma boa prática, em que vamos concatenar informações.
+
+### 
