@@ -99,6 +99,7 @@ terminado em
   - [Serializaçao e deserialização customizada](#serializaçao-e-deserialização-customizada)
     - [A importância de um CorrelationId](#a-importância-de-um-correlationid)
     - [A serialização customizada com correlation id e um wrapper](#a-serialização-customizada-com-correlation-id-e-um-wrapper)
+    - [Deserialização customizada](#deserialização-customizada-1)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5320,3 +5321,122 @@ Payload é uma string e o correlation id é esse.
 A serialização está bonita. 
 
 O que falta é a desserialização.
+
+### Deserialização customizada
+Nosso próximo passo é a deserialização. 
+ 
+Assim como fizemos o JSON serializer queremos o deserializer. 
+ 
+Primeiro, quando criamos o builder, os dois vão usar o mesmo type adapter. 
+ 
+Segundo, quando deserializamos, estou deserializando o quê? 
+
+Estou sempre deserializando uma message. 
+
+**Eu não deserializo outra coisa de jeito nenhum, porque só enviamos message**.
+
+Tem maneiras e maneiras de trabalhar, vou fazer dessa mais simples primeiro. 
+
+O deserializer vai transformar numa string e vai mandar transformar em JSON, para o tipo message.class. 
+
+Isso devolve uma message. 
+
+Na prática, esse JSON só deserializa mensagens. 
+
+Fica bem mais simples. 
+
+A implementação da deserialização em si está dentro do message adapter.
+
+Poderia colocar em classes distintas? 
+
+Se o código é grande. 
+
+Na deserialização, temos que ler esses três valores. 
+
+O type do payload, o objeto do JSON. 
+
+A propriedade do get as string é o payload type, o nome da classe. 
+
+O correlation id é um objeto. 
+
+Vou mandar deserializar. 
+
+Só que ele não sabe qual o tipo. 
+
+Eu falo para ele. 
+
+Por fim, nosso payload é um context deserializer.
+
+Tem um cuidado para tomar. 
+
+A classe pode não existir. 
+
+Se não existir, vou jogar um JSON parse exception. 
+
+Tem um detalhe importante. 
+
+**Essa classe pode abrir também um buraco, porque alguém malvado pode enviar uma mensagem dizendo uma classe do sistema que você não espera e você vai dar um class for name nessa classe**. 
+
+Talvez você queira uma lista de classes que você aceita.
+
+Vou retornar uma nova mensagem, porque já tenho o correlation id dela, e tenho o payload, é só devolver as coisas na ordem certa. 
+
+Falta testar isso. 
+
+Quando chamarmos, ele vai startar o service users que envia para todo mundo. 
+
+Esse cara que envia para todo mundo vai precisar de alguma maneira fazer o código de receber a mensagem. 
+
+Temos um Kafka service, que já recebe a mensagem, mas não muito bem.
+
+Estou falando que quero um Kafka service, Ele é um Kafka service de strings. 
+
+Nossa consumer function é de string. 
+
+Ela tem que receber um consumer record de message de string. 
+
+Agora o record é a mensagem. 
+
+Minha mensagem é o valor que está lá dentro. 
+
+Se eu pegar da mensagem o get payload tenho a string.
+
+Quero debugar, porque o JSON deserializer usa o adapter. 
+
+Posso olhar a string da mensagem. 
+
+Vamos ver se a deserialização funciona. 
+
+Tenho meu objeto. 
+
+Vou dar um stop, rodar de novo. 
+
+Ele vai consumir a mensagem. 
+
+Se ele enviou, o service reading report vai receber as mensagens. 
+
+Só que todo nosso consumer vai receber um message de user. 
+
+Se eu tirar o message de t, em um lugar funciona, mas em outro reclama. 
+
+Tem que ser tudo message. 
+
+O usuário é o payload, e o resto continua funcionando.
+
+Ele está recebendo vários, sempre com correlation id, com payload, que é um usuário. 
+
+Está funcionando. 
+
+Podemos colocar um toString. 
+
+Ele vai imprimir o id do usuário.
+
+Funcionando. 
+
+Só que o correlation id não está tão interessante, porque cada mensagem nova tem um correlation id diferente. 
+
+Não era o que eu queria. 
+
+Eu queria que se começou numa requisição um http e-commerce service, todas as mensagens disparadas a partir de então tem que ter a palavra http e-commerce service, o mesmo código aleatório, para dizer que todas saíram da mesma requisição. 
+
+Temos que implementar isso.
