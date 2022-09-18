@@ -98,7 +98,7 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-9)
   - [Serializaçao e deserialização customizada](#serializaçao-e-deserialização-customizada)
     - [A importância de um CorrelationId](#a-importância-de-um-correlationid)
-    - [](#)
+    - [A serialização customizada com correlation id e um wrapper](#a-serialização-customizada-com-correlation-id-e-um-wrapper)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5170,4 +5170,153 @@ Não só um id simples, mas que crie uma relação entre todas as mensagens.
 
 Vamos criar o correlation id, uma boa prática, em que vamos concatenar informações.
 
-### 
+### A serialização customizada com correlation id e um wrapper
+Vamos tentar implementar um correlation id para o sistema.
+
+Primeiro, vou sair fechando tudo. 
+
+Quero algo que vai ter em todos os serviços. 
+
+No common Kafka vou ter uma classe que vai representar o id de correlação. 
+
+Meu correlation id vai ter um id. 
+
+Vou ter que gerar um construtor. 
+
+Meu id vai ser um número genérico, aleatório. 
+
+Agora, vamos pegar um primeiro serviço que tem que enviar uma mensagem. 
+
+É o serviço de http. 
+
+Se ele envia uma mensagem, o envio está no send e vai enviar uma string.
+
+Eu posso alterar a classe string e colocar o correlation id ali dentro? 
+
+Não. 
+
+Mas em outras classes eu poderia. 
+
+Poderíamos usar um sistema de cabeçalho. 
+
+Também poderíamos criar uma classe que envelopa uma carga, que é uma string, com o que eu quero a mais. 
+
+E aí tenho o controle fino daquela capa. 
+
+É o que vou fazer.
+
+Vou criar uma nova classe, que vai representar uma mensagem. 
+
+Ela é construída com um correlation id, e um conteúdo. 
+
+Só que a mensagem é tipada, é do tipo t. 
+
+Então meu conteúdo é do tipo t. 
+
+Vou jogar isso nos parâmetros. 
+
+Tenho tanto id quanto payload na minha mensagem.
+
+Como de costume, vou escrever meu toString. 
+
+No correlation id também. 
+
+Voltamos para quem vai enviar a mensagem. 
+
+Quando estou mandando, mando um t, mas ao invés de enviar de verdade um value, poderíamos chamar isso de payload, e aí nossa mensagem é o t. 
+
+Claro que o send não funciona agora.
+
+Já sou capaz de enviar. 
+
+Todo mundo já está enviando uma message de t. 
+
+Tudo que eu fizer support à message, todo mundo vai ter support. 
+
+Isso no envio. 
+
+Mas temos que tomar cuidado com as propriedades. 
+
+Temos que usar um serializador nosso. 
+
+Nosso JSON não tem suporte à classe message, porque ela é genérica. 
+
+Ele não sabe o tipo que tem aqui. 
+
+Precisa de algumas dicas. 
+
+Queremos customizar o processo fino. 
+
+Temos que dizer como esse JSON vai ser representado.
+
+Por enquanto, ele serializa um JSON puro. 
+
+Podemos pegar esse service, levantar ele e levantar o log, para ver como está sendo feita a serialização da mensagem.
+
+Primeiro vou ter que ir no terminal ver se meu Kafka está rodando, porque as mensagens estão incompatíveis. 
+
+Vou matar tudo, porque vou querer rodar do zero. 
+
+Vou entrar no diretório e iniciamos tudo.
+
+Vamos dar uma olhada nisso acontecendo. 
+
+Vou rodar o http e-commerce service. 
+
+Mas na verdade vou debugar. 
+
+E aí vamos chamar o generate reports, que vai tentar serializar a string para nós. 
+
+Temos o objeto, que é uma message. 
+
+Mas e quando eu serializar? 
+
+Ele devolve o que seria o resultado. 
+
+Parece que serializou, mas tem um cuidado que precisamos tomar. 
+
+Repare que ele serializou o id e o payload. 
+
+O payload é o quê? 
+
+Que tipo ele é? 
+
+Não sabemos. 
+
+Quando a message é serializada ela não diz. 
+
+Ela só armazena nome do campo e valor.
+
+O que queremos fazer agora é customizar o JSON, adaptando, registrando um type adapter. 
+
+Ele vai ser para classe message.class, vou registrar um adaptador, que vai ser meu new message adapter. 
+
+Ele implementa o JSON serializer de uma mensagem. 
+
+Queremos implementar esse método. 
+
+Ao invés de retornar nulo, quero preparar um objeto, um JSON object.
+
+Muito cuidado. 
+
+Temos que retornar esse objeto. 
+
+Vou falar para ele que vou adicionar o payload, que é o meu contexto de serialização. 
+
+Já nosso id, que é o correlation id vai ser o content message get id. 
+
+Faltou o tipo. 
+
+Vou adicionar uma propriedade, que vou chamar de type. 
+
+Vou pegar o payload, a classe dele e dar um get name. 
+
+Você poderia fazer de outras maneiras, mas estou pegando a classe do objeto que estou serializando.
+
+Vamos dar uma olhada no resultado. 
+
+Payload é uma string e o correlation id é esse. 
+
+A serialização está bonita. 
+
+O que falta é a desserialização.
