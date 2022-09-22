@@ -26,7 +26,7 @@ class KafkaService<T> implements Closeable {
         consumer.subscribe(topic); // inscriçao nos topicos por regex
     }
 
-    private KafkaService(ConsumerFunction parse, String groupID, Class<T> type, Map<String, String> properties) {
+    private KafkaService(ConsumerFunction<T> parse, String groupID, Class<T> type, Map<String, String> properties) {
         this.parse = parse;
         this.consumer = new KafkaConsumer<>(getProperties(type, groupID, properties));
     }

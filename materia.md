@@ -104,7 +104,8 @@ terminado em
   - [Correlation ID](#correlation-id)
     - [Implementando o correlation id](#implementando-o-correlation-id)
     - [O que aprendemos?](#o-que-aprendemos-11)
-  - [](#)
+  - [Arquitetura e falhas atá agora](#arquitetura-e-falhas-atá-agora)
+    - [Revisando a arquitetura até agora](#revisando-a-arquitetura-até-agora)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5622,4 +5623,99 @@ Monitorar o que acontece fica mais complexo, mas o correlation id funciona.
 * a importância da mensagem como wrapper ou headers
 * como manter o histórico de mensagens que geraram uma determinada mensagem
 
-## 
+## Arquitetura e falhas atá agora
+### Revisando a arquitetura até agora
+Agora que já conseguimos trackear uma mensagem pelo sistema, queria levantar todos os nossos serviços e simular o que acontece quando um cai, o outro levanta. 
+
+Vou passar serviço por serviço. 
+
+O que é serviço, recebe uma message de string.
+
+Além do e-mail service, temos o fraude detector. 
+
+Tenho todos os seis serviços rodando em paralelo. 
+
+No nosso terminal, podíamos dar um comando para ver como estão os tópicos. 
+
+Ele vai mostrar a situação dos tópicos para nós. 
+
+Por padrão, eles têm três partições. 
+
+É replicado em três kafkas.
+
+O que acontece quando levantamos alguém que vai disparar a mensagem? 
+
+Ele dispara a mensagem recebendo confirmação do líder daquela partição, e aí essa mensagem é replicada para outras réplicas. 
+
+Temos confirmações de que aquela mensagem foi replicada, gravada ou se não estou nem aí. 
+
+São opções. 
+
+Inclusive, no tópico consumer offsets, temos várias informações sobre os offsets de vários consumidores em relação a vários tópicos. 
+
+Isso é feito pelo próprio Kafka.
+
+Além disso, vimos muito tempo atrás o consumer groups. 
+
+Ele vai mostrar todos os grupos de consumo, pedindo para descrever. 
+
+Cada serviço que está escutando coloquei um grupo de consumo diferente. 
+
+Por exemplo, podemos subir lá em cima e ele fala o grupo. 
+
+Tem o batch send message service, que estava escutando o tópico e-commerce send message to all users. 
+
+O consumer id nesse caso é o mesmo, porque só tenho um serviço dele rodando. 
+
+Ele está escutando os três.
+
+Repare que nosso batch send message service por uma época consumiu o tópico send message to all users. 
+
+Temos cada grupo em cada tópico que está sendo escutado por esse grupo.
+
+Cada tópico tem várias partições. 
+
+Se tem três partições, elas estão sendo escutadas pelo menos serviço. 
+
+Na partição zero, estou no offset, já li até a mensagem cinco, sendo que tem cinco mensagens. 
+
+Então não estou atrasado. 
+
+Porque não tem mensagem para desatrasar.
+
+Poderia acontecer de parar um desses serviços. 
+
+Agora posso rodar a requisição, que envia uma mensagem nesse tópico. 
+
+Se eu dou o describe, vamos ver que o cara está parado, porque não tem ninguém ativo. 
+
+Provavelmente um problema. 
+
+Só tinha um e parou. 
+
+Inclusive, na partição zero está no quinto. 
+
+Se eu for lá agora e rodar de novo o batch send message service, vou rodar o consumer group de novo. 
+
+Conseguimos aqui ter uma sacada de que se um serviço cai e recupera, ele consome as mensagens que estão atrasadas. 
+
+Também vimos que se eu derrubar algum dos brokers, vou derrubar o broker que é o server três. 
+
+Quando faço isso, o tópico que tinha o líder três para de ter líder três, joga a liderança para alguma outra pessoa. 
+
+Tem réplica no três, porque tem várias informações lá. 
+
+Mas quem está em sync é só um e dois.
+
+Se eu levantar agora o três, ele vai assumir a liderança? 
+
+Não necessariamente. 
+
+Ele só vai voltar a ficar em sync com quem precisa estar em sync. 
+
+Vimos que tivemos tolerância à falha, principalmente nos brokers, porque posso ter vários e derrubo um, e no serviço.
+
+O que eu queria ver agora é vamos rodar duas vezes o mesmo serviço. 
+
+A gente fez isso lá atrás, mas agora que aprendemos várias coisas de como funciona o Kafka, quero ver esse tipo de falha de novo.
+
