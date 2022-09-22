@@ -107,6 +107,8 @@ terminado em
   - [Arquitetura e falhas atá agora](#arquitetura-e-falhas-atá-agora)
     - [Revisando a arquitetura até agora](#revisando-a-arquitetura-até-agora)
     - [Revisando o rebalanceamento](#revisando-o-rebalanceamento)
+    - [O que aprendemos?](#o-que-aprendemos-12)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5820,3 +5822,11 @@ Comecei, gero e ele começa.
 Maravilha, ele vai um por um e notificando o servidor. 
 
 Temos a revisão completa até do rebalanceamento.
+
+### O que aprendemos?
+* revisando tópicos e partições
+* revisando consumer groups
+* revisando líderes e réplicas
+* revisando rebalanceamento
+
+## 
