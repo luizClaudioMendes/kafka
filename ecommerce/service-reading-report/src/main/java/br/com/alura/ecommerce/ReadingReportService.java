@@ -17,7 +17,7 @@ public class ReadingReportService {
         var reportService = new ReadingReportService();
         try(var service = new KafkaService<>(
                 ReadingReportService.class.getSimpleName(), // group
-                "USER_GENERATE_READING_REPORT", // topic
+                "ECOMMERCE_USER_GENERATE_READING_REPORT", // topic
                 reportService::parse, // parse function
                 User.class, // expected type of message
                 new HashMap<String, String>()//cria um mapa vazio que nao vai ter nada para override nas propriedades

@@ -100,6 +100,11 @@ terminado em
     - [A importância de um CorrelationId](#a-importância-de-um-correlationid)
     - [A serialização customizada com correlation id e um wrapper](#a-serialização-customizada-com-correlation-id-e-um-wrapper)
     - [Deserialização customizada](#deserialização-customizada-1)
+    - [O que aprendemos?](#o-que-aprendemos-10)
+  - [Correlation ID](#correlation-id)
+    - [Implementando o correlation id](#implementando-o-correlation-id)
+    - [O que aprendemos?](#o-que-aprendemos-11)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5440,3 +5445,181 @@ Não era o que eu queria.
 Eu queria que se começou numa requisição um http e-commerce service, todas as mensagens disparadas a partir de então tem que ter a palavra http e-commerce service, o mesmo código aleatório, para dizer que todas saíram da mesma requisição. 
 
 Temos que implementar isso.
+
+### O que aprendemos?
+* a importância de um correlation id
+* serialização e deserialização customizada em sua própria camada
+* wrapping de mensagens com tipo próprio
+
+## Correlation ID
+### Implementando o correlation id
+Chegou a hora de implementarmos de verdade o processo do correlation id. 
+
+Agora que já temos o invólucro em volta do payload, queremos que o correlation id realmente indique o fluxo da mensagem dentro de todos os meus serviços. 
+
+Vamos parar para pensar no primeiro ponto de todos, o http e-commerce service.
+
+Quando mando a mensagem do generate, eu gostaria que essa mensagem tivesse um correlation id que começasse com a palavra generate report service, por exemplo. 
+
+E claro, cada vez que chamo o do get, ela teria essa palavra e um número único. 
+
+Às vezes esse número único tem informações do time stamp, para que você possa usar hora na busca.
+
+Quando criamos o dispatcher, falamos qual é o código dele. 
+
+O identificador único. 
+
+É o nome da classe. 
+
+Vou usar o simple name, que é só o nome simples da classe. 
+
+Esse nome vou atribuir a uma variável membro. 
+
+Também quero usar esse nome quando crio o correlation id. 
+
+Esse é o name do meu dispatcher. 
+
+Então, para o correlation id não é mais name. 
+
+É tipo um título. 
+
+O id vai ser o título mais alguma informação. 
+
+Uso um parênteses para indicar. 
+
+A mensagem que ele manda sempre vai ser generate all report services e um número aleatório. 
+
+Dessa maneira garanto isso.
+
+Como sabemos que as mensagens chegam? 
+
+Vimos elas chegando, no log service. 
+
+Ele antes recebia uma string, agora vai receber um message de string. 
+
+Queremos uma consumer function que receba uma message de string.
+
+Posso imprimir tudo, como antes, mas vamos testar. 
+
+Temos quatro serviços rodando. 
+
+Posso startar o generate reports. 
+
+Ele me dá aquelas mensagens e não chega nada no log service, porque ele só escuta. 
+
+Faltou colocar todos os tópicos. 
+
+Essa é a importância de manter um padrão. 
+
+Da maneira como enviei o generate all reports, ele recebe no tópico.
+
+Ele está reclamando, porque como vai despachar, precisa falar o simple name, para startar. 
+
+Depois, o que lê é o reading report service. 
+
+Ele recebe uma message e consegue imprimir. 
+
+Ele vai escutar o E-COMMERCE USER. 
+
+Esse cara, quando está enviando, o tópico não é ele quem define. 
+
+É o generate all reports.
+
+Quem envia, precisa falar o nome. 
+
+A order é o value get payload. 
+
+Por fim, o log service. 
+
+Mas você precisa criar os tópicos antes. 
+
+Vou deixar ele rodar tudo, depois rodo o log service. 
+
+Ele vai pegar todos os patterns e rodo de novo, porque quero que ele pegue as mensagens de e-commerce para mim.
+
+A serialização e a deserialização estão certas. 
+
+E o correlation id foi. 
+
+Estamos colocando um título e um id. 
+
+Está faltando que na segunda mensagem, na terceira e na quarta, elas tinham que informar a mensagem que as originou. 
+
+Quem originou foi a primeira. 
+
+Tem que estar concatenado.
+
+Repare que sempre que estou enviando uma mensagem, não estou falando o correlation id. 
+
+Estou deixando ele criar. 
+
+Aí está a sacada. 
+
+Se eu deixo esse padrão, as pessoas podem esquecer. 
+
+Nesse caso, quero que todo mundo lembre, porque se uma pessoa esquecer perco completamente o log. 
+
+Para de fazer sentido, desconecta. 
+
+Não quero criar o correlation id aqui. 
+
+Quero receber como parâmetro.
+
+Se eu vou precisar dele como parâmetro, meu nome lá em cima não preciso mais, porque não estou usando mais o nome aqui dentro. 
+
+Mas é importante entender o que estamos fazendo. 
+
+O send precisa de um correlation id. 
+
+Baseado nisso, ele vai enviar uma mensagem. 
+
+Quando instanciamos, não precisamos mais disso.
+
+Tem vários outros que não estão compilando, porque mudamos o construtor. 
+
+Vamos ter que tirar a string e fazer isso funcionar de novo.
+
+Agora forcei todos os meus desenvolvedores a criar um correlation id, para a pessoas não esquecer que é vital para o sistema. 
+
+Quem quer usar o Kafka precisa usar o correlation id no sistema. 
+
+Mas a pessoa não precisou concatenar no correlation id antigo os valores.
+
+Esse meu novo correlation id não é para ser completamente novo. 
+
+Ele precisa pegar da mensagem o id existente e continuar com esse título. 
+
+Vou criar o método continue que recebe um novo título e vai retornar um new correlation id, com o meu id atual, mais um hífen e um título novo. Só que se eu colocar o título novo, ele mesmo vai concatenar. 
+
+A partir de agora, todo mundo que recebe uma mensagem e dispara uma mensagem por causa disso vai chamar o continue if. 
+
+Quem mais usa o Kafka dispatcher? 
+
+Vou verificar. 
+
+Se ele usa, em algum momento está enviando e vamos usar de alguma maneira.
+
+Agora que eu mudei de message para order, o message é o record.value. 
+
+Se ele é minha message, a order é a message get payload.
+
+Temos todo mundo rodando e disparando as mensagens. 
+
+Quero restartar esses caras.
+
+Agora, o novo correlation id é o correlation original mais um id aleatório. 
+
+Assim vamos concatenando. 
+
+Conseguimos saber quem gerou quem. 
+
+Se no meio você tivesse requisições http assíncronas também seria interessante passar o correlation id, para você saber por qual caminho chegou a requisição. 
+
+Monitorar o que acontece fica mais complexo, mas o correlation id funciona.
+
+### O que aprendemos?
+* como implementar um correlation id
+* a importância da mensagem como wrapper ou headers
+* como manter o histórico de mensagens que geraram uma determinada mensagem
+
+## 

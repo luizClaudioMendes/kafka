@@ -29,7 +29,7 @@ public class BatchSendMessageService {
         var batchService = new BatchSendMessageService();
         try(var service = new KafkaService<>(
                 BatchSendMessageService.class.getSimpleName(), // consumer group
-                "SEND_MESSAGE_TO_ALL_USERS", // topic
+                "ECOMMERCE_SEND_MESSAGE_TO_ALL_USERS", // topic
                 batchService::parse, // parse function
                 String.class, // expected type of message
                 Map.of()//cria um mapa vazio que nao vai ter nada para override nas propriedades
@@ -48,7 +48,9 @@ public class BatchSendMessageService {
         System.out.println("Topic: " + message.getPayload());
 
         for (User user : getAllUsers()) {
-            userDispatcher.send(message.getPayload(), user.getUuid(), user);
+            userDispatcher.send(message.getPayload(), user.getUuid(),
+                    message.getId().continueWith(BatchSendMessageService.class.getSimpleName()),
+                    user);
         }
 
     }

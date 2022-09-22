@@ -39,12 +39,12 @@ public class CreateUserService {
 
     private final KafkaDispatcher<Order> orderDispatcher= new KafkaDispatcher<Order>();
 
-    private void parse(ConsumerRecord<String, Order> record) throws SQLException {
+    private void parse(ConsumerRecord<String, Message<Order>> record) throws SQLException {
         System.out.println("-----------------");
         System.out.println("Processando new order, checking for new user");
         System.out.println(record.value());
 
-        var order = record.value();
+        var order = record.value().getPayload();
 
         if(isNewUser(order.getEmail())) {
             System.out.println("is new user");
