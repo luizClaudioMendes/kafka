@@ -14,22 +14,22 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 class KafkaService<T> implements Closeable {
-    private final KafkaConsumer<String, Message<T>> consumer;
+    private final KafkaConsumer<String, T> consumer;
     private final ConsumerFunction parse;
 
-    KafkaService(String groupID, String topic, ConsumerFunction<T> parse, Class<T> type, Map<String, String> properties) {
+    KafkaService(String groupID, String topic, ConsumerFunction parse, Class<T> type, Map<String, String> properties) {
         this(parse, groupID, type, properties);
         consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
     }
 
-    KafkaService(String groupID, Pattern topic, ConsumerFunction<T> parse, Class<T> type, Map<String, String> properties) {
+    KafkaService(String groupID, Pattern topic, ConsumerFunction parse, Class<T> type, Map<String, String> properties) {
         this(parse, groupID, type, properties);
         consumer.subscribe(topic); // inscriçao nos topicos por regex
     }
 
     private KafkaService(ConsumerFunction parse, String groupID, Class<T> type, Map<String, String> properties) {
         this.parse = parse;
-        this.consumer = (KafkaConsumer<String, Message<T>>) new KafkaConsumer<String, T>(getProperties(type, groupID, properties));
+        this.consumer = new KafkaConsumer<String, T>(getProperties(type, groupID, properties));
     }
 
     void run() {
@@ -58,6 +58,7 @@ class KafkaService<T> implements Closeable {
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, GsonDeserializer.class.getName()); // deserializador de mensagens
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupID);// consumer group name
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());// client name
+        properties.setProperty(GsonDeserializer.TYPE_CONFIG, type.getName());
 
         properties.putAll(overrideProperties);//sobrescreve as propriedades
         return properties;
