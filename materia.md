@@ -108,7 +108,10 @@ terminado em
     - [Revisando a arquitetura até agora](#revisando-a-arquitetura-até-agora)
     - [Revisando o rebalanceamento](#revisando-o-rebalanceamento)
     - [O que aprendemos?](#o-que-aprendemos-12)
-  - [](#)
+  - [Assincronicidade, retries e deadleatters](#assincronicidade-retries-e-deadleatters)
+    - [Retries e assincronicidade](#retries-e-assincronicidade)
+      - [in flight requests per session](#in-flight-requests-per-session)
+      - [garantias do Kafka](#garantias-do-kafka)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5829,4 +5832,90 @@ Temos a revisão completa até do rebalanceamento.
 * revisando líderes e réplicas
 * revisando rebalanceamento
 
-## 
+## Assincronicidade, retries e deadleatters
+### Retries e assincronicidade
+Falamos muito de como funciona tudo que criamos até agora em diversas questões do Kafka. 
+
+Eu queria ver uma situação que não trabalhamos ainda, mas que também é importante.
+
+Vimos no comecinho que quando enviamos uma mensagem, fazemos uma chamada do get. 
+
+O get segurava nossa thread atual até ter uma confirmação do Kafka que a mensagem foi enviada.
+
+Você poderia falar que nem sempre você quer isso. 
+
+Às vezes você vai querer fazer de forma assíncrona. 
+
+Eu poderia fazer esse envio de mensagem assim. 
+
+Queremos que o trabalho seja assíncrono, mas a questão é que eu que estou chamando o send quero ir para a próxima linha mesmo sem ter certeza do que está lá? 
+
+Se sim, podemos renomear para send and wait e criar uma função que seria assíncrona.
+
+O problema é que desenvolvedores vão por padrão chamar o send e esquecer de dar wait quando você quiser, o que pode ser grave. 
+
+Eu pessoalmente prefiro que por padrão o send espere. 
+
+Temos um send que é assíncrono, não espera. 
+
+Ele faz tudo, exceto o get. 
+
+Quero extrair um método, que é o send assync.
+
+Agora tenho como enviar um send normal e um send assync. 
+
+Estou usando tudo no mesmo pacote. 
+
+Se você quiser enviar a forma assíncrona, é assim.
+
+Vamos usar isso quando fazemos o batch send message service. 
+
+Antes ele enviava uma por vez e agora ele vai enviar de forma assíncrona.
+
+E se o tópico que estamos usando cair? 
+
+Meu único jeito de derrubar tudo seria derrubar todos mesmo. 
+
+O que eu faço se tem broker quebrado? 
+
+Eu posso levantar. 
+
+Ele está enviando mensagens das outras partições. 
+
+Foi de forma assíncrona.
+
+O perigo é que enquanto ele está tentando enviar e não consegue, ele pode conseguir enviar para outra. E aí ele volta e envia para a primeira. 
+
+Imagine que ele está tentando enviar para 0, não consegue, envia mensagem para outra, tenta para a 0 de novo. 
+
+Ele consegue, mas não recebeu confirmação da outra. 
+
+Pode ser que tenhamos dado uma informação do futuro sendo que a anterior não foi.
+
+#### in flight requests per session
+Como ele faz os retries, existe uma configuração chamada in flight requests per session. 
+
+Retries é o número máximo de vezes que ele vai tentar enviar a mensagem. 
+
+Se você tiver um retrie válido e configurar um max in flight requests, a ordem dos commits pode ser diferente. 
+
+Você pode ter enviado primeiro A e depois B, mas B chegou antes.
+
+#### garantias do Kafka
+O Kafka tem algumas garantias. 
+
+**Ele não garante que as mensagens vão ser processadas na ordem de envio, mas ele garante que na ordem que ela aparece dentro da partição é a ordem que vai ser consumida**. 
+
+A questão é se vai chegar na ordem em que enviei. 
+
+Não dá para saber.
+
+O **max.in.flight** vai dizer que **o número máximo de tentativas paralelas é n**.
+
+Corremos esse risco. 
+
+No nosso caso, processar um usuário antes do outro não vai ter grandes problemas, mas às vezes você vai querer garantir algo do gênero sim. 
+
+É uma propriedade importante. 
+
+Tem várias propriedades interessantes para estudarmos à medida em que avançarmos.
