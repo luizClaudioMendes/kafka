@@ -30,7 +30,6 @@ public class CreateUserService {
                 CreateUserService.class.getSimpleName(), // consumer group
                 "ECOMMERCE_NEW_ORDER", // topic
                 createUserService::parse, // parse function
-                Order.class, // expected type of message
                 new HashMap<String, String>()//cria um mapa vazio que nao vai ter nada para override nas propriedades
         )) {
             service.run();

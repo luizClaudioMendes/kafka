@@ -11,7 +11,6 @@ public class EmailService {
                 EmailService.class.getSimpleName(),
                 "ECOMMERCE_SEND_EMAIL",
                 emailService::parse,
-                String.class,
                 Map.of()//cria um mapa vazio que nao vai sobrescrever nada nas properties
         )) {
             service.run();

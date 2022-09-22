@@ -106,6 +106,7 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-11)
   - [Arquitetura e falhas atá agora](#arquitetura-e-falhas-atá-agora)
     - [Revisando a arquitetura até agora](#revisando-a-arquitetura-até-agora)
+    - [Revisando o rebalanceamento](#revisando-o-rebalanceamento)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5719,3 +5720,103 @@ O que eu queria ver agora é vamos rodar duas vezes o mesmo serviço.
 
 A gente fez isso lá atrás, mas agora que aprendemos várias coisas de como funciona o Kafka, quero ver esse tipo de falha de novo.
 
+### Revisando o rebalanceamento
+Lá para trás, trabalhamos com o envio das mensagens. 
+
+Quando fazemos um Kafka dispatcher, disparamos a mensagem e esperamos todo mundo confirmar para ter certeza de que foi. 
+
+Quando criamos um Kafka service, falamos que queremos consumir diversas mensagens.
+
+Por exemplo, a configuração do server, o key, o value. 
+
+São essas coisas que estamos falando. 
+
+Podemos falar de quantas em quantas mensagens queremos consumir. 
+
+Quando faço isso, encontro vários records. 
+
+O log service pode consumir, ele vai encontrando os registros. 
+
+O reading report service pode consumir. 
+
+Quando criamos o Kafka service, passo para ele diversas propriedades.
+
+Como padrão, temos o Bootstrap servers, o key deserializer, o value, o group e o client id. 
+
+O tipo não usamos mais. 
+
+Ainda usamos o tipo para ter indução do tipo que estamos trabalhando. 
+
+Eu poderia usar o consumer function. 
+
+Agora, quem chama o Kafka service, não precisa mais passar string, porque nossa função parse recebe uma message de string. 
+
+Ele pega do tipo do parse. 
+
+Todos os lugares que chamavam o Kafka service não precisam mais.
+
+Simplificamos nosso código porque o Kafka service não precisa mais do tipo. 
+
+Ele recebe direto a função. Do jeito que queríamos.
+
+O do tópico quem usa é o log. 
+
+Por fim, vamos voltar para o read report service. 
+
+É ele quem recebe diversas mensagens. 
+
+Mas se dermos uma olhada, tem um momento em que ele recebeu 12 registros de uma vez só. 
+
+Nosso poling do parse é feito no Kafka service. 
+
+E aí o poling é feito por no máximo cem milissegundos, porque a cada cem milissegundos estamos falando para o servidor que estamos vivos. 
+
+Enquanto o servidor souber disso, sei que tem alguém lendo naquela partição. 
+
+É uma grande sacada.
+
+Se eu tiver mais de um serviço rodando, vou rodar uma segunda vez. 
+
+Pego o send message e copio. 
+
+Posso dar ok e mandar rodar. 
+
+Repare que ele vai dizer que estamos no e-commerce send message to all users escutando duas partições. 
+
+Se formos no que estava antes, ele atualizou também, só para a partição dois. Aconteceu o rebalanço. 
+
+Só vai acontecer quando o servidor está comunicando com o cliente, porque ele precisa avisar o cliente que levantou o segundo. 
+
+O primeiro não sabe disso. 
+
+O segundo avisa o broker, o broker fala e rebalança. 
+
+Ele precisa da comunicação com os dois.
+
+Queremos a batida de coração frequente e o broker sabe em quantas pessoas ele pode dividir, porque se em algum momento o segundo back send message service parar, ele para de pingar o servidor. 
+
+Se isso acontece, o servidor fala que o cara parou e não tem mais ninguém escutando aquelas partições. 
+
+Se não tem ninguém, rebalanço.
+
+Essas são as grandes sacadas dos rebalanceamentos. 
+
+Esse poling devolve para nós um número de mensagens recebido. 
+
+Essas mensagens, podemos definir um máximo, porque por quanto mais tempo processo os reports, mais coisa pode acontecer e mais chance de erro.
+
+É muito comum que em algum momento no nosso serviço tenhamos uma configuração padrão para o consumidor, que seja o número máximo que vou consumir por vez. 
+
+É um. 
+
+Uma mensagem por vez. 
+
+Eu processo uma mensagem por vez, notifico meu broker, dizendo que avancei um. Posso ir avançando de um em um. 
+
+Vou rerun e acessamos para ver as mensagens indo.
+
+Comecei, gero e ele começa. 
+
+Maravilha, ele vai um por um e notificando o servidor. 
+
+Temos a revisão completa até do rebalanceamento.

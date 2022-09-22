@@ -31,7 +31,6 @@ public class BatchSendMessageService {
                 BatchSendMessageService.class.getSimpleName(), // consumer group
                 "ECOMMERCE_SEND_MESSAGE_TO_ALL_USERS", // topic
                 batchService::parse, // parse function
-                String.class, // expected type of message
                 Map.of()//cria um mapa vazio que nao vai ter nada para override nas propriedades
         )) {
             service.run();
