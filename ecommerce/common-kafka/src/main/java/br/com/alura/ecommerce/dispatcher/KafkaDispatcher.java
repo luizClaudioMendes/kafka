@@ -1,5 +1,7 @@
-package br.com.alura.ecommerce;
+package br.com.alura.ecommerce.dispatcher;
 
+import br.com.alura.ecommerce.CorrelationId;
+import br.com.alura.ecommerce.Message;
 import org.apache.kafka.clients.producer.*;
 import org.apache.kafka.common.serialization.StringSerializer;
 
@@ -12,7 +14,7 @@ public class KafkaDispatcher<T> implements Closeable {
 
     private final KafkaProducer<String, Message<T>> producer;
 
-    KafkaDispatcher() {
+    public KafkaDispatcher() {
         this.producer = new KafkaProducer<>(properties());
     }
 
@@ -25,8 +27,8 @@ public class KafkaDispatcher<T> implements Closeable {
         return properties;
     }
 
-    Future<RecordMetadata> sendAsync(String topic, String key, CorrelationId id, T payload) throws ExecutionException, InterruptedException {
-        var value = new Message<T>(id, payload);
+    public Future<RecordMetadata> sendAsync(String topic, String key, CorrelationId id, T payload) throws ExecutionException, InterruptedException {
+        var value = new Message<T>(id.continueWith("_" + topic), payload);
         var record = new ProducerRecord<>(topic, key, value); // parametros: topico, chave, mensagem
 
         Callback callback = (data, ex) -> {
@@ -40,7 +42,7 @@ public class KafkaDispatcher<T> implements Closeable {
         return producer.send(record, callback);// envia a mensagem assincrona
     }
 
-    void send(String topic, String key, CorrelationId id, T payload) throws ExecutionException, InterruptedException {
+    public void send(String topic, String key, CorrelationId id, T payload) throws ExecutionException, InterruptedException {
         Future<RecordMetadata> future = sendAsync(topic, key, id, payload);
         future.get(); // envia a mensagem sincrona com callback (lambda)
     }

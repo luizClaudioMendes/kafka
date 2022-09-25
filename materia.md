@@ -114,6 +114,8 @@ terminado em
       - [garantias do Kafka](#garantias-do-kafka)
     - [Enviando mensagem de deadletter](#enviando-mensagem-de-deadletter)
     - [O que aprendemos?](#o-que-aprendemos-13)
+- [Kafka: idempotencia e garantias](#kafka-idempotencia-e-garantias)
+  - [Organização e lidando com múltiplos tópicos de envio em um mesmo serviço](#organização-e-lidando-com-múltiplos-tópicos-de-envio-em-um-mesmo-serviço)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6005,3 +6007,87 @@ Com isso, criamos um sistema de deadletter.
 * como verificar os retries
 * onde estudar configurações importantes do produtor
 * como implementar um dead letter simples
+
+# Kafka: idempotencia e garantias
+## Organização e lidando com múltiplos tópicos de envio em um mesmo serviço
+Vamos continuar o nosso projeto.
+
+Você poderia argumentar que eu gostaria de ter de repente uma biblioteca comum para acessar banco de dados, pode ser que todos os bancos de dados usem o mesmo banco, parece ruim, cada um tem o seu banco nos meus serviços, parece ser o tradicional, cada serviço tem o seu banco, mas a camada de código que abstrai o acesso ao banco pode ser uma biblioteca commom, seja lá o que for de DataBase.
+
+Temos esse tipo de bibliotecas commom e depois vários serviços, alguns serviços que são pontos de entrada do nosso cliente conosco, por exemplo, o nosso service-http-ecommerce o que é quando a pessoa faz requisições http, também temos o service-new-order que a pessoa executa um programa para valer.
+
+Eu poderia ter também outras requisições http, seja lá o que for, que seriam pontos de entrada automáticos, como um API REST ou algo do gênero, que são outros programas se comunicando comigo, um aplicativo, um celular se comunicando comigo, são serviços que são pontos de entrada no meu grande conjunto de serviços.
+
+Tem os serviços que ficam lá no miolo, o fraud detection, ele recebe uma mensagem e ele produz outras mensagens, tem alguns serviços que são meio que utilitários, por exemplo aquele que roda um Batch, o serviço de Users, tem dois serviços lá dentro, um que roda um Batch de envio de mensagens, ele recebe uma mensagem que ele tem que replicar para todos os usuários, ele republica essa mensagem em outro tópico para todos os usuários, por exemplo.
+
+Eu tenho também serviços que são uma “camada final”, eles se comunicam com sistemas externos, por exemplo, temos um serviço na parte de e-mail que envia um e-mail, ele se comunica com um sistema externo SMTP para enviar e-mail, não implementamos o SMTP aqui, mas você faz como você quiser para acessar a API SMTP, ou um serviço de e-mail que você utiliza, MailChimp, seja lá o que for.
+
+Também podemos ter serviços que fazem requisições para outros sistemas http, para outros sistemas com outros protocolos, podemos ter serviços que armazena o log em disco, eu estou considerando o disco como uma coisa externa, ou que armazena um Log em um sistema externo, tudo isso são maneiras de nos comunicarmos nesse nosso universo de serviços.
+
+Agora eu quero dar uma organizada nesses pacotes do nosso common-kafka, que é uma coisa simples de organizar, um conjunto pequeno de classes.
+
+Seria razoável separarmos um pouco disso e tem duas formas que eu acredito que são mais comuns de separar, uma forma seria separar a parte de recebimento de mensagens com a parte de envio de mensagens, isto é, o que está ligado com serviço e com deserialização, colocar em um pacote, a parte que está ligada com o Dispatcher e Serialização colocar em outro pacote, uma maneira razoável de organizar.
+
+Outra maneira de organizar seria separar a parte de Serialização e Deserialização, a parte que lida com o Gson da parte que lida com o Kafka em si, percebem as diferenças? 
+
+Então uma parte vai trabalhar com o Gson, isso é uma coisa, outra coisa é a API do Kafka em si que são o KafkaDispatcher e o KafkaService de envio e recebimento de mensagem, você poderia separar de maneiras diferentes.
+
+Eu prefiro separar da primeira maneira que eu citei e eu prefiro deixar o GsonDeserializer que é utilizado junto com o nosso KafkaService, eu prefiro deixá-los juntos no mesmo pacote, o GsonDeserializer junto com o KafkaDispatcher porque eles são usados no mesmo pacote, pessoalmente eu prefiro dessa maneira, de novo, não tem regra.
+
+Eu vou criar um novo pacote, um deles eu vou chamar de “dispatcher” que é a parte que envia mensagens, a parte de envio de mensagens é o KafkaDispatcher com o GsonSerializer, serialização e o Dispatcher estão juntas, aí você fala: “E a mensagem?” A mensagem é geral então eu vou deixar geral, eu só queria dar essa organizada.
+
+Vamos refatorar, ele comenta que tem vários conflitos de coisas que são locais e que vão ter que ser transformadas em públicas, realmente eu quero que esses caras tenham uma interface pública a partir de agora, vamos abrir esses dois caras? Vamos ver o que tem que ser público aqui.
+
+Construiu um KafkaDispatcher, tem que ser público, o KafkaDispatcher pode ser usado em qualquer pacote, o método send eu quero que seja usado em qualquer pacote, fechei, a Message que está em outro pacote agora, também “Ctrl + Enter” eu quero que ela seja pública, o Dispatcher eu resolvi, o Serializer agora, o Serializer é público.
+
+Agora vamos fazer a parte do serviço que consome, eu vou colocar um Package, vou chamar de “consumer”, dentro do consumer eu vou colocar o Service, o Deserializer e o ConsumerFunction que isso daqui só é usado no consumo, os outros são usados nas duas fases, na de ida e na de volta então eu vou deixar separado, estou movendo tudo para lá.
+
+A interface ConsumerFunction é pública porque está escrito e o método é público porque é público, aqui está public, lembrando, aquela interface eu deixei um throws Exception que pode ser algo muito nojento, porém no nosso caso que é muito específico, queremos ser obrigados a tratar todo tipo de Exception e temos já todo tipo de Exception sendo jogado, vários tipos que herdam de Exception então acabou ficando Exception, por isso.
+
+Nossa classe Service tem que ser pública por que podemos acessá-la de qualquer lugar, os construtores também, se era privado pode continuar privado, o run, quem é que chama o run? A gente ainda chama o run para começar a rodar o KafkaService, vamos deixar public void run.
+
+Reparem que ele é um Closeable mas ela não é um runable, se ele fosse um runable o que podíamos fazer? 
+
+Chamar uma nova thread nele e ele chamava o run, dá para transformarmos ele em um runable? 
+
+Até dá, o problema do runable é que não pode jogar Exception teríamos que tratar esse erro de alguma maneira para parar a thread, ela até para se der esse erro mas através de um Runtime Exception, poderia, não é o foco agora, estamos só movendo as classes agora e corrigindo o aspecto de acesso aos métodos.
+
+Estamos com o pacote correto, eu posso dar um Build, Rebuild Project, para ele Rebuildar o projeto inteiro e temos isso refatorado, aqui ele reclama porque nesse caso específico faltou passarmos um CorrelationId, vamos passar um Correlation Id? Lembra, NewOrderMain está começando, se está começando eu vou querer um CorrelationId novo, então vou passar um “id” novo, como esse id vai ser usado? Para essas duas mensagens, para mensagem do Order e do emailDispatcher.
+
+O nosso “id” é um “new CorrelationId” e qual é o nome mesmo? É o nosso “NewOrderMain.class.getSimpleName”, reparem que se eu usar dessa maneira aqui, o que acontece? 
+
+Ele vai gerar um id aleatório, mas na hora que formos mandaram o send, vai ser exatamente o mesmo id para os dois, exatamente, eu não queria, eu queria que fosse um pouco diferente deste para este.
+
+Por quê? 
+
+Para identificar que este está ligado com esse tópico e esse com esse outro tópico, então aí sim está uma refatoração que eu gostaria de fazer agora e a refatoração que eu gostaria de fazer é a seguinte: 
+
+quando eu envio a mensagem, Até usamos um CorrelationId e se der uma olhada no CorrelationId, temos como concatenar com mais alguma coisa usando o continueWith.
+
+O que eu vou fazer? 
+
+Percebam que estamos em uma situação no NewOrderMain que foi rodado, para essa rodagem do NewOrderMain eu criei um CorrelationId que é único, mas eu preciso Identificar qual é o tópico que estou usando e mais ainda, se eu tivesse mandando três mensagens de emailDispatcher eu queria identificar o tópico e qual dessas três está sendo usada.
+
+O que eu vou fazer? 
+
+Na hora que eu chamo o send, eu tenho o meu CorrelationId já com o nome do título e um Id aleatório, vou concatenar nesse meu Id, eu vou “continueWith” e eu coloco o próprio tópico, só que para separar o que é o tópico e o que não é o tópico, porque lembra, o continueWith vai colocar um hífen, para identificar que é um tópico e não um processo que está executado, eu vou colocar só um “”_ “ + topic”, o ID desse envio dessa mensagem e vai o próximo serviço.
+
+Vamos tentar um Build, Rebuildar tudo, está Rebuildando, ele vai projeto por projeto, da base para todos os outros e todos os projetos estão Buildados, o que eu vou querer fazer agora? 
+
+Fizemos uma pequena refatoração de pacotes e demos uma olhada no CorrelationId e em um cenário que ainda tinha um problema que é, quando eu tenho vários envios de mensagem de dois tópicos distintos na mesma invocação daquele serviço, ia ficar com o mesmo id nos dois casos, eu não quero o mesmo id nos dois casos.
+
+Agora eu tenho id sempre únicos, inclusive Se eu mandar dez vezes a mesma mensagem, se dentro do NewOrderMain o que eu fizesse era enviar 10 vezes, o que eu vou ter? 
+
+Dez CorrelationId e aqui vai ter um primeiro começo igual, o tópico, um valor aleatório e vai para frente.
+
+Qual é o meu próximo passo? 
+
+Discutir um pouco o envio de e-mail, eu quero discutir agora com vocês essa nossa camada final, como podemos estruturar isso e como isso costuma ser estruturado.
+
+Quando eu tenho um serviço externo, por exemplo e-mail, poderia ser Analytics, poderiam ser várias outras coisas que podemos ter, mas um caso clássico é e-mail, que é um sistema que temos uma comunicação razoavelmente complexa.
+
+Temos que criar o conteúdo do e-mail, temos que criar o subject, temos que enviar esse e-mail para uma pessoa, ou para todas as pessoas, talvez customizar o email por pessoa, talvez o e-mail seja transacional, um pessoa efetuou a compra, talvez seja um email de marketing de um dia, hoje é dia 01/01 então eu quero dar feliz Ano Novo para todo mundo.
+
+Tem tipos de e-mail, situações, queremos deixar isso espalhado por todos os serviços, queremos concentrar isso, como queremos lidar com isso? 
+
+Vamos discutir isso daqui a pouco, Como podemos fazer isso com serviços e mensagens.

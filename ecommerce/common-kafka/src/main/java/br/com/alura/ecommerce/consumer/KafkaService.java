@@ -1,5 +1,8 @@
-package br.com.alura.ecommerce;
+package br.com.alura.ecommerce.consumer;
 
+import br.com.alura.ecommerce.Message;
+import br.com.alura.ecommerce.dispatcher.GsonSerializer;
+import br.com.alura.ecommerce.dispatcher.KafkaDispatcher;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -13,16 +16,16 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
-class KafkaService<T> implements Closeable {
+public class KafkaService<T> implements Closeable {
     private final KafkaConsumer<String, Message<T>> consumer;
     private final ConsumerFunction parse;
 
-    KafkaService(String groupID, String topic, ConsumerFunction<T> parse, Map<String, String> properties) {
+    public KafkaService(String groupID, String topic, ConsumerFunction<T> parse, Map<String, String> properties) {
         this(parse, groupID,  properties);
         consumer.subscribe(Collections.singletonList(topic)); // inscriçao nos topicos ouvidos
     }
 
-    KafkaService(String groupID, Pattern topic, ConsumerFunction<T> parse, Map<String, String> properties) {
+    public KafkaService(String groupID, Pattern topic, ConsumerFunction<T> parse, Map<String, String> properties) {
         this(parse, groupID,  properties);
         consumer.subscribe(topic); // inscriçao nos topicos por regex
     }
@@ -32,7 +35,7 @@ class KafkaService<T> implements Closeable {
         this.consumer = new KafkaConsumer<>(getProperties(groupID, properties));
     }
 
-    void run() throws ExecutionException, InterruptedException {
+    public void run() throws ExecutionException, InterruptedException {
         try (var deadLetter = new KafkaDispatcher<>()) {
             while (true) { // fica chamando o kafka para procurar mensagens
                 var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
