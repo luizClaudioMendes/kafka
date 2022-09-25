@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 class KafkaService<T> implements Closeable {
@@ -31,19 +32,20 @@ class KafkaService<T> implements Closeable {
         this.consumer = new KafkaConsumer<>(getProperties(groupID, properties));
     }
 
-    void run() {
-        while (true) { // fica chamando o kafka para procurar mensagens
-            var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
-            if (!records.isEmpty()) {
-                System.out.println("encontrei " + records.count() + " registros");
-                for (var record : records) {
-                    try {
-                        parse.consume(record);
-                    } catch (Exception e) {
-                        // only catches exception because no matter which exception
-                        // i want to recover and parse next one
-                        // so far, just logging
-                        e.printStackTrace();
+    void run() throws ExecutionException, InterruptedException {
+        try (var deadLetter = new KafkaDispatcher<>()) {
+            while (true) { // fica chamando o kafka para procurar mensagens
+                var records = consumer.poll(Duration.ofMillis(100)); // consulta o kafka por mais mensagens
+                if (!records.isEmpty()) {
+                    System.out.println("encontrei " + records.count() + " registros");
+                    for (var record : records) {
+                        try {
+                            parse.consume(record);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            var message = record.value();
+                            deadLetter.send("ECOMMERCE_DEADLETTER", message.getId().toString(), message.getId().continueWith("DeadLetter"), new GsonSerializer().serialize("", message));
+                        }
                     }
                 }
             }

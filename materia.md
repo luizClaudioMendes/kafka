@@ -112,6 +112,7 @@ terminado em
     - [Retries e assincronicidade](#retries-e-assincronicidade)
       - [in flight requests per session](#in-flight-requests-per-session)
       - [garantias do Kafka](#garantias-do-kafka)
+    - [Enviando mensagem de deadletter](#enviando-mensagem-de-deadletter)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5919,3 +5920,82 @@ No nosso caso, processar um usuário antes do outro não vai ter grandes problem
 É uma propriedade importante. 
 
 Tem várias propriedades interessantes para estudarmos à medida em que avançarmos.
+
+### Enviando mensagem de deadletter
+Vamos dar uma olhada em outra situação de falha comum. 
+
+Imagine que temos tudo acontecendo, mas quando consumimos uma mensagem dá erro. 
+
+Qualquer erro. 
+
+Se eu forçar um erro, o que posso fazer? 
+
+Se meu programa está rodando, já era. 
+
+Ele já consumiu a mensagem.
+
+Quando consumimos uma mensagem, eu gostaria de alguma forma de falar que deu erro. 
+
+Vou abrir o Kafka service. 
+
+Ele chama o parse. 
+
+Eu tinha falado para tomar cuidado. 
+
+O que eu quero agora é além de logar registrar que aconteceu o problema. 
+
+Como posso fazer isso? 
+
+Mandamos uma mensagem síncrona para um tópico. 
+
+E aí falo qual foi o problema que aconteceu. 
+
+Vou precisar da chave. 
+
+Uso o correlation id.
+
+Agora precisamos de alguma maneira falar qual foi a mensagem que deu caca. 
+
+Só que esse objeto pode ser de qualquer tipo. 
+
+Eu vou criar um JSON serializer genérico e vou mandar serializar minha mensagem.
+
+Falta criar um dispatcher. 
+
+Vou chamar de deadtletter. 
+
+Vou ter um try onde vou criar o dispatcher. 
+
+É um deadletter new Kafka dispatcher que vai enviar conteúdos do tipo string. 
+
+Mas não precisamos mais disso. 
+
+É só jogar direto.
+
+Pode dar um exception na hora de enviar essa mensagem. 
+
+Se isso acontecer, quero parar o programa. 
+
+Eu tinha que tomar uma decisão. 
+
+Se dá erro no registro do deadletter, continuo com a próxima mensagem ou mato o serviço? 
+
+Se eu simplesmente logo a informação, ela vai ficar guardada.
+
+Eu preferi parar tudo. 
+
+Mata o serviço. 
+
+Poderia tentar de novo, consumir de novo, até dar certo, pode ser, tem vantagens e desvantagens. 
+
+Se o deadletter não der certo, para tudo porque tem algo errado. 
+
+Essa exception vou jogar no método main.
+
+Conseguimos logar uma mensagem de deadletter. 
+
+Ele acontece, porque no Kafka service estamos enviando um e-commerce deadletter.
+
+Todos os serviços que consomem também precisam do throws. 
+
+Com isso, criamos um sistema de deadletter.
