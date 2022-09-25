@@ -113,6 +113,7 @@ terminado em
       - [in flight requests per session](#in-flight-requests-per-session)
       - [garantias do Kafka](#garantias-do-kafka)
     - [Enviando mensagem de deadletter](#enviando-mensagem-de-deadletter)
+    - [O que aprendemos?](#o-que-aprendemos-13)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -5999,3 +6000,8 @@ Ele acontece, porque no Kafka service estamos enviando um e-commerce deadletter.
 Todos os serviços que consomem também precisam do throws. 
 
 Com isso, criamos um sistema de deadletter.
+
+### O que aprendemos?
+* como verificar os retries
+* onde estudar configurações importantes do produtor
+* como implementar um dead letter simples
