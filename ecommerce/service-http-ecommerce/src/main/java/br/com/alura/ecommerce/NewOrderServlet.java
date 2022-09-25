@@ -16,13 +16,10 @@ public class NewOrderServlet extends HttpServlet implements Servlet {
 
     private final KafkaDispatcher<Order> orderDispatcher = new KafkaDispatcher<Order>();
 
-    private final KafkaDispatcher<String> emailDispatcher = new KafkaDispatcher<String>();
-
     @Override
     public void destroy() {
         super.destroy();
         orderDispatcher.close();
-        emailDispatcher.close();
     }
 
     @Override
@@ -38,12 +35,6 @@ public class NewOrderServlet extends HttpServlet implements Servlet {
             orderDispatcher.send("ECOMMERCE_NEW_ORDER", email,
                     new CorrelationId(NewOrderServlet.class.getSimpleName()),
                     order);
-
-            var emailCode = "thank you for your order! we are processing your order!";
-
-            emailDispatcher.send("ECOMMERCE_SEND_EMAIL", email,
-                    new CorrelationId(NewOrderServlet.class.getSimpleName()),
-                    emailCode);
 
             System.out.println("Processo da nova compra terminado");
 

@@ -116,6 +116,7 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-13)
 - [Kafka: idempotencia e garantias](#kafka-idempotencia-e-garantias)
   - [Organização e lidando com múltiplos tópicos de envio em um mesmo serviço](#organização-e-lidando-com-múltiplos-tópicos-de-envio-em-um-mesmo-serviço)
+    - [Micro serviços de email e fast delegate real](#micro-serviços-de-email-e-fast-delegate-real)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6091,3 +6092,146 @@ Temos que criar o conteúdo do e-mail, temos que criar o subject, temos que envi
 Tem tipos de e-mail, situações, queremos deixar isso espalhado por todos os serviços, queremos concentrar isso, como queremos lidar com isso? 
 
 Vamos discutir isso daqui a pouco, Como podemos fazer isso com serviços e mensagens.
+
+### Micro serviços de email e fast delegate real
+Continuando nosso projeto, eu queria discutir um pouco a partir do e-mail, repare, o nosso service-email foi feito de uma maneira que, qualquer parte dessa grande aplicação, envia uma mensagem e já dispara um e-mail, nesse instante o e-mail é só uma string, mas poderiam ser quatro strings, de quem, para quem, os tópicos, o subject e o corpo, o body, pelo menos esses quatro poderiam compor um e-mail e enviamos.
+
+Mas você fala: “Guilherme, precisa mesmo de um serviço para isso? 
+
+Não é só criar uma biblioteca chamada common-email e nessa biblioteca common-email eu crio uma classe chamada Email que recebe esses quatro valores no construtor, tem um método send ou algo do gênero, uma função em uma linguagem funcional, que tem o send, que recebe quatro strings e envia o e-mail de forma assíncrona?” 
+
+Poderia ser, eu poderia implementar isso através de uma biblioteca, como fizemos com o CommonKafka.
+
+Qual é a dificuldade que teríamos em lidar com isso? 
+
+A dificuldade é que o e-mail é um sistema externo, por exemplo, mesmo sendo um sistema interno poderíamos ter esse problema, ele é um sistema externo, como nos comunicamos com ele, é importante.
+
+Eu posso ficar mandando mensagens para esse cara que envia e-mail a cada segundo? 
+
+Ou ele vai achar que eu sou um spam e é melhor eu enviar um limite de 100 por minuto? 
+
+Eu devo me comunicar com os servidores da Amazon ou do Azure? 
+
+Percebam que têm perguntas que talvez eu queira centralizar em um único lugar, se eu deixar esta biblioteca espalhada em todos os projetos, se eu tiver que fazer uma mudança dessas, eu tenho que mudar todos os projetos.
+
+Eu não estou usando mais o serviço de e-mail da Amazon, eu tenho que usar o serviço do outro, não tenho como, enquanto todos não atualizarem a CommonLibrary do service-email1.0 para o 2.0, que só mudou a implementação da Amazon para o Google Email ou alguma coisa do gênero para enviar e-mails, já era, não vai, vai estar usando metade.
+
+Agora se isso está extraído em um serviço de e-mail, fica transparente, se estamos usando servidores de SMTP próprios, se estamos usando os servidores da Amazon, servidores do Google, da Microsoft, da IBM, seja lá de onde for, não importa.
+
+Por quê? 
+
+O que me importa é, eu enviei uma mensagem para o meu serviço interno dizendo que eu quero enviar um e-mail, alguém que é responsável pela equipe de e-mail é responsável por lidar com essas partes e eu estou de boa, feliz e contente porque eu pedi para o e-mail ser enviado, o e-mail tem que ser enviado, é isso, tem uma equipe responsável pelo e-mail, claro, às vezes somos responsáveis por tudo, não tem problema.
+
+Reparem que o problema da biblioteca é esse, todo mundo têm que migrar ao mesmo tempo, por quê? 
+
+Porque eu estou utilizando provedores de serviços externos que eu tenho que migrar de um para o outro e eu dependo de migrações e lembrem, aquela sincronização, imagina em que eu tenho a 10 serviços, se eu tiver 300, eu não vou conseguir imigrar todos ao mesmo tempo, nunca, fica difícil de fazer isso.
+
+De que maneira eu poderia fazer isso? 
+
+Eu tenho duas maneiras pensando em um serviço de e-mail, uma é a maneira atual em que por exemplo, o meu cara que deseja enviar um e-mail? 
+
+Quando temos um pedido de compra, logo de cara, na nossa Servlet por exemplo, já me envia um e-mail dizendo, quero enviar um e-mail e colocamos uma única string.
+
+Lembram que eu falei que poderiam ser quatro strings em um e-mail? 
+
+Poderia ser uma estrutura de dados Email com quatro Strings, nós criamos o texto customizado e mandamos para o EmailService e o EmailService dispara esse e-mail.
+
+Na verdade preparamos tudo e só avisamos o EmailService, eu tenho isso para enviar, envie para mim por favor? 
+
+E o EmailService envia, por exemplo, eu tenho um arquivo que eu quero disponibilizar para alguém acessar, se eu tenho esse arquivo que foi gerado na minha máquina e eu quero disponibilizar para uma pessoa acessar no e-mail, eu tenho duas abordagens.
+
+Posso fazer isso via attachment, eu posso adicionar um attachment no e-mail e vai junto com o e-mail e posso fazer isso através de um link, isto é, eu tenho que pegar esse arquivo que eu gerei na minha máquina, subir para um lugar que vai ser público - ou não público, não sei, preciso estar logado, não precisa - e esse arquivo vai ser linkado dentro do e-mail.
+
+Percebem que já vou ter vários passos que eu tenho que fazer, o que podemos fazer?
+
+Ao invés de eu ficar gerando todo texto do e-mail, eu mesmo em cada um dos meus mil serviços, eu crio um tipo de serviço intermediário, que é o serviço que sabe, por exemplo, é o serviço responsável por e-mails em determinada situação, tem um serviço de e-mail que realmente só recebe os dados crus e dispara, porque com isso isolamos a camada externa.
+
+Se você tem um serviço que tem que se comunicar com um serviço externo da Receita Federal, de nota fiscal, isola isso em um sistema, mas se de repente você tem 100 caras se comunicando com eles, talvez você queira extrair algum deles, talvez você queira isolar algum desses.
+
+O que eu gostaria de fazer agora? 
+
+Reparem que em alguns desses serviços eu vou querer enviar um e-mail ou em outros serviços eu poderia querer enviar um e-mail, ao invés de eu gerar um texto desse e-mail e enviar direto para o meu EmailService, eu simplesmente falo, eu tenho um novo pedido de compra.
+
+Ele simplesmente fala ECOMMERCE_NEW_ORDER, acabou, não existe esse ECOMMERCE_SEND_EMAIL, por que não vai existir isso? 
+
+Porque se isso existir aqui eu vou ter que, nesse serviço de NewOrder, me preocupar tanto com o processo de uma nova compra em si, quanto com uma questão de e-mail, como bolar este e-mail, são duas preocupações em um único serviço.
+
+Vai ter gente que vai argumentar que temos que quebrar isso em dois, tem empresas brasileiras e lá fora que fazem esse caminho, então eu queria mostrar esse cenário, como eu quebro isso para ter em dois? 
+
+Já tem alguém escutando o ECOMMERCE_NEW_ORDER, quem é que escuta o ECOMMERCE_NEW_ORDER? 
+
+O FraudDetector, o log, o analítico, várias coisas podem escutar.
+
+Eu posso ter um outro serviço, eu vou querer ter outro módulo e esse módulo é um service e o que ele vai fazer? 
+
+Ele vai enviar um e-mail quando tem uma nova ordem de compra, quando temos um ECOMMERCE_NEW_ORDER, temos um service-email-new-order.
+
+O que esse service-email-new-order faz? 
+
+Você verá como ele vai ficar simples, ou pequeno, ele simplesmente faz o seguinte, vai ficar escutando um tópico, que nem o fraud-detector, ele é mais complexo até do que precisamos o fraud-detector, ele ficará escutando um tópico, como fazemos aqui, eu vou copiar o fraud-detector, vou copiar tudo, quando eu der o paste ele vai só pastear o pacote ecommerce, como eu imaginava, eu vou dar uma mudança manual br.com.alura.ecommerce.
+
+Lembrando, eu poderia estar criando um pacote por serviço, organizar no serviço também pacotes, não tem problema esse eu estou deixando realmente no mesmo por enquanto, vamos mover não está querendo corrigir para mim, temos agora as duas classes.
+
+Ao invés de FraudDetectorService o que eu quero fazer é renomear, eu quero renomear para “EmailNewOrderService”. 
+
+Então o que o EmailNewOrderService faz? 
+
+Ele vai criar o “emailService” para mim, emailService::parse, vai criar o KafkaService, eu tenho que adicionar a dependência, vai chamar o run, ele escuta o ECOMMERCE_NEW_ORDER.
+
+E qual é a diferença? 
+
+Ao invés dele fazer o que está fazendo agora, o que ele vai fazer é: pedir para despachar um e-mail, eu vou tirar essas linhas do NewOrder e o que ele faz é, quando ele recebe no meu parse, ele está processando uma nova ordem, então estamos “preparing email”, preparando o e-mail.
+
+Eu vou jogar o value e o resto eu não vou imprimir, eu vou direto simplesmente fazer o quê? 
+
+Despachar o meu e-mail, eu preciso de um emailDispatcher, eu vou deixar um aqui para mim, lembrando que o emailDispatcher é um Dispatcher de string, então eu vou enviar uma String, aqui eu tenho que ter o e-mail que eu vou enviar, que é o e-mail da pessoa, então é o “record.value()” e temos o “getPayLoad()” que é uma order e tem o “getEmail()”, temos tudo isso para pegar.
+
+Como essa é a minha order, eu já vou extrair minha order, vou extrair “order”, aqui eu vou deixar o record mesmo que é a nossa mensagem, eu acho que é mais bonito e o que eu vou usar de Hash? 
+
+Eu vou usar por usuário, “order.getEmail()”, como eu tenho o email, vou usar o e-mail do usuário como hash.
+
+Desculpa, o hash do e-mail eu já estou usando aqui, o que faltou foi o CorrelationId. 
+
+O CorrelationId é o quê? 
+
+É o id da minha mensagem, continua com “EmailNewOrderService.class.getSimpleName()”, eu tenho o meu novo id, para esse id não ficar muito longo, eu vou extrair essa variável como “id” e para que isso também não fique, eu vou extrair esse record.value como a minha mensagem, essa é a minha mensagem, também pode ser um var.
+
+Eu tenho uma mensagem, posso deixar tudo bonito, aqui ficou feio eu vou deixar um pouco bonito, o que esse service é capaz de fazer mesmo? 
+
+Ele escuta agora a única mensagem que é enviada por ordem, teve um pedido de ordem, ele escuta uma mensagem, quando temos o pedido de ordem, agora temos aquele Fast Delegate de verdade, só dispara uma mensagem, acabou.
+
+O que ele faz aqui dentro mesmo? 
+
+Aqui dentro ele prepara o e-mail e pede para o e-mail ser enviado, quer dizer, se eu precisasse fazer upload de arquivos, faço upload de arquivos aqui, se eu precisar customizar esse e-mail de cinco maneiras diferentes, eu customizo de cinco maneiras diferentes, se eu precisar enviar um e-mail para o comprador, um e-mail para o vendedor, se de repente meu site é um Marketplace, tem o comprador e a compradora, o vendedor e a vendedora, eu quero disparar dois e-mails, disparo os dois aqui.
+
+Percebeu a diferença? 
+
+Eu isolei no meu serviço de e-mail, no meu serviço de nova compra, eu isolei todos os processos, inclusive o processo de preparar os e-mails, aqui eu só estou preparando os e-mails, seja preparar o e-mail para quem comprou, preparar o e-mail para quem vendeu, preparar o e-mail para seja lá quem for, eu isolei isso, se eu isolei isso aqui, lá no nosso HttpEcommerce o que tínhamos mesmo? 
+
+Tínhamos uma Servlet que era uma nova compra.
+
+O que podemos fazer ali? 
+
+Arrancar fora o e-mail, por quê? Por que não despachamos mais e-mail, só despachamos ECOMMERCE_NEW_ORDER. 
+
+Esse nosso emailDispatcher não precisa mais, não precisamos mais desse cara, posso fechar esse, posso fechar este outro, aqui também devemos ter um emailDispatcher que não é usado mais.
+
+agora eu tenho um Fast Dispatch e o Delegate também pegou, delegou, estou feliz e eu isolei entre os meus serviços e um serviço de e-mail que é externo, um serviço intermediário.
+
+De novo, não precisa ser para todos serviço externo colocar esse serviço intermediário, não precisa ser que só com serviço externo você vai querer este cara intermediário, você vai perceber se aquele código que você está fazendo, por exemplo, preparando 5 e-mails para serem enviados, faz sentido ser em ordem síncrona e sequencial, isto é, uma linha depois da outra ou não, distribui, se o e-mail for, foi, senão foi, não foi, pelo menos eu continuei o processamento da minha compra, mostrei a tela de sucesso e fui para frente.
+
+Percebem as diferenças? 
+
+Não estou preocupado, já comecei o processo da compra, se o e-mail de repente não foi, depois damos um jeito, quando você acessar o banco já vai estar lá, estou feliz, se eu armazenei no banco, disparo a mensagem e sigo em frente, ou só dispara a mensagem, a mensagem armazena no banco e sigo em frente, o que você preferir.
+
+Tendo aqui uma mensagem que está registrada no Kafka, que eu sei que eu não vou perder, estou feliz com isso, Fast Delegate isolando o serviço de e-mail, uma abordagem bem comum, aí você fala: “Guilherme, eu tenho 20 tipos de e-mail no meu sistema, eu vou criar 20 serviços? 
+
+Mais o serviço de e-mail, 21?”.
+
+Essa seria essa abordagem, não é à toa que existem empresas onde se tem mais serviços do que desenvolvedores, por quê? Porque vários desses serviços são minúsculos, são tipo esse daqui.
+
+Claro, esse daqui poderia utilizar uma biblioteca common-email que só te ajuda a criar aqueles quatro campos, o from, o to para deixar com o do usuário ou da usuária, para deixar o texto super redondo, poderia usar a biblioteca common para isso aqui onde fizer sentido, se é aqui ou se é no serviceEmail, você vai perceber onde faz sentido para você este tipo de biblioteca, esse tipo de ajuda.
+
+Mas a sacada é, realmente vão ter muitos serviços minúsculos, que basicamente não tem consumo de CPU, de vez em quando vai precisar de CPU e é muito fácil de manter porque basicamente são uma ou duas classes que fazem alguma coisa bem específica de forma assíncrona sem nos preocuparmos, perceberam porque cresce bastante a quantidade de serviços quando você começa a trabalhar com realmente micro serviços? 
+
+E aqui na mensageria podemos trabalhar dessa maneira.
