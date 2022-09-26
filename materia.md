@@ -122,7 +122,11 @@ terminado em
     - [Paralelizando com pools de threads](#paralelizando-com-pools-de-threads)
     - [Facilidade de criar novos serviços](#facilidade-de-criar-novos-serviços)
     - [O que aprendemos?](#o-que-aprendemos-14)
-  - [](#)
+  - [commits e offsets](#commits-e-offsets)
+    - [Offset latest e earliest](#offset-latest-e-earliest)
+      - [OFFSET_RESET_CONFIG](#offset_reset_config)
+      - [AUTO_OFFSET](#auto_offset)
+      - [AUTO_OFFSET_RESET_CONFIG](#auto_offset_reset_config)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6493,4 +6497,169 @@ Podemos dar um Build, Rebuild Project só para ter certeza de que está tudo bui
 * paralelizando com thread pools
 * simplicidade ao criar novos componentes
 
-## 
+## commits e offsets
+### Offset latest e earliest
+Eu queria agora parar tudo que estamos fazendo, stop all, derrubar nossos servidores do Kafka, assim que tudo for derrubado, vou derrubar também o Zookeeper e remover todos os diretórios eu vou querer começar de uma coisa totalmente limpa, por quê? 
+
+Porque eu quero dar uma olhada com mais calma o que acontece em determinadas situações, para isso, eu não vou precisar desses 5 rodando, só preciso parar tudo, parei, podemos dar uma olhada, lembram que as partições por padrão usam 3 réplicas.
+
+O que eu posso fazer é primeiro apagar os diretórios "../data", o diretório que eu criei e apago tudo que está lá, eu vou começar um Zookeeper novo, vou começar um Kafka novo, ele começa rápido porque não tem muito o que recuperar, entender onde ele estava, etc, e começamos a começar os outros servidores, 3, 4, o 5.
+
+O que eu quero dar uma olhada é o seguinte, vamos pegar o nosso servidor http, lembram o que ele faz? 
+
+Ele tem uma requisição que cria uma nova compra, a requisição de nova compra gera um ECOMMERCE_NEW_ORDER e o EmailService o que ele faz mesmo? 
+
+Escuta um ECOMMERCE_SEND, não é bem o que queríamos.
+
+Quem é que faz a ponte entre uma nova compra e o EmailService? 
+
+É o EmailNewOrderService, esse serviço é quem faz a ponte, este é um serviço que nós ainda não tinhamos migrado, eu tinha deixado quieto assim como outros serviços.
+
+O que eu vou fazer é já mandar implementar agora o nosso ConsumerService, é do tipo Order, ele é público e vamos ter dois métodos para implementar, o que devolve essa linha de cima e o que devolve essa linha de cima aqui.
+
+Vamos mandar implementar os dois métodos, implementa os métodos para mim, o tópico é esse, temos o EmailNewOrderService que é o SimpleName, que é o nosso ConsumerGroup e o que eu quero fazer é: eu vou instanciar este cara só uma instância, eu vou querer chamar o ServiceRunner só um. 
+
+Você fala: “Você poderia usar herança, alguma coisa do gênero para não ter que ficar colocando essa linha.” Tem mil maneiras, eu não vou colocar essa, não gosto, não vou por esse caminho, vou para o caminho simples para mim.
+
+Eu estou começando uma única Thread com esse EmailNewOrderService, o que ele faz mesmo? 
+
+Ele escuta o tópico ECOMMERCE_NEW_ORDER e envia para o ECOMMERCE_SEND_EMAIL, o que eu vou querer fazer, eu quero dar uma olhada no que vai acontecer com esses caras, deixa só eu ver uma exception que está sendo jogada, essas exceptions tem que ser adicionada do nosso list e eu fechei a classe, fiz o que não deveria fazer, adicionei uma e adiciono a outra.
+
+Tenho as exceptions lá, o que eu vou fazer é: eu gostaria de rodar esse cara e o http, eu gostaria de rodar os dois e ver o que acontece, vamos primeiro rodar a nossa Servlet, para pegar a Servlet eu tenho que rodar o HttpEcommerceService.
+
+Eu vou rodá-lo aqui, lembram que esse Service não é um service Kafka, ele é um service de http portanto eu não estou usando o nosso CommonsKafka para startar vários serviços e etc, você poderia ter um CommonsHttp se você tiver vários servidores http, claro, tem que fazer o que faz sentido para você.
+
+Vamos no nosso localhost, não é o generate-reports, o que queremos é o "/new", só que lembrem, o /new, que é a nossa Servlet, tem alguns parâmetros, tem o parâmetro email e o parâmetro amount", eu vou colocar um "email=guilherme@email.com" e "amount=500", quando eu chamar isso, deve enviar uma mensagem.
+
+Vamos dar uma olhada antes quais são os ConsumerGroups, vamos dar uma olhada antes quais são os tópicos, as duas coisas, quais são os tópicos que existem até agora?
+
+Nenhum, quais são os ConsumerGroups que existem até agora? 
+
+Nenhum, ninguém está escutando.
+
+O que eu vou fazer agora? 
+
+Vou tentar enviar a mensagem, na hora que eu envio, o que acontece? 
+
+O tópico é criado, por padrão o Kafka está configurado para criar o tópico automaticamente, eu poderia configurar para não fazer isso, já que criou, o ConsumerGroup existe? 
+
+Não existe, ninguém está escutando, o tópico existe? 
+
+Existe, com três partições, três réplicas, tudo bonito.
+
+A questão é, quero levantar aquele serviço, o nosso serviço que tem uma única Thread, vou levantar ele, mandei rodar, vamos ver o que vai acontecer quando rodar, ele levanta, ele roda e no final de tudo, consumidor, startando consumidor, subscribe, etc, ele resetou o offset para 1.
+
+Por quê? 
+
+Porque ele falou, não encontrei nenhum offset comittado para a partição 1, não tinha encontrado offset afinal era um ConsumerGroup novo, se é um ConsumerGroup novo, ele começa onde? 
+
+Da primeira mensagem mais antiga que eu tenho acesso ou de todas as mensagens a partir de agora? 
+
+De onde ele deve começar? 
+
+A resposta é sua, fica difícil, temos que decidir, vai ser de cara ou não vai ser de cara? 
+
+Essas são configurações que temos dos nossos serviços.
+
+Quando temos o ServiceRunner que cria o ServiceProvider, que usa o nosso KafkaService, o KafkaService, ele tem algumas propriedades, dentre essas propriedades, uma delas "properties.setProperty(ConsumerConfig.", algumas delas estão ligadas com o "OFFSET", a partir de onde eu devo começar? "OFFSET_RESET_CONFIG".
+
+#### OFFSET_RESET_CONFIG
+O que o OFFSET_RESET_CONFIG faz? 
+
+O que fazer quando não tem um offset inicial, ou o offset não existe mais no servidor porque os dados foram apagados, imagina que nem agora, começamos um ConsumerGroup novo, não tem offset, não tem armazenado o quanto eu já consumi, mas eu tenho cinco mensagens lá, eu devo começar do zero ou eu devo começar do seis? 
+
+**Por padrão ele está começando nessa propriedade, ele está começando do latest, do último**.
+
+E você fala, vai ter situações que eu quero começar do mais antigo, é claro, se você começa do último o que acontece? 
+
+É capaz de você perder mensagens se você não tem nada lá e se já tem mensagem lá, mas não tem nada lido de offset? 
+
+Você pode perder mensagens e se você voltar para trás é capaz de ter acontecido o quê? 
+
+É capaz de você não ter feito o commit direito e executar de novo essas mensagens.
+
+Imagina que você recebeu elas, você estava processando elas, você não commitou ainda e caiu, você levantou de novo e você está processando desde o zero de novo, é um dos mil casos em que isso pode acontecer isso.
+
+Não tem segredo, só tem decisões, o que eu devo fazer, o AUTO_COMMIT, o intervalo do AUTO_COMMIT, se você quer AUTO_COMMIT que dá para fazer manual, tudo detalhe, vamos ver essas coisas acontecendo, o AUTO_OFFSET, ao invés de deixarmos como está vamos configurar para “latest”, para o mais recente, AUTO_OFFSET_RESET_CONFIG, vamos lá na documentação, ConsumerConfig, AUTO_OFFSET.
+
+O que você pode fazer? 
+
+Você pode passar o valor smallest, o que é smallest, é o zero? 
+
+Talvez, porque se você tiver um milhão de mensagem, algumas já foram apagadas por que eram muito antigas e você só tem as cem mil últimas, então o smallest vai ser as novecentas mil, porque é a última que está armazenada em disco que eu sou capaz de te entregar ainda, lembra, o Kafka por padrão não armazena eterno, pelo tempo que ele armazenou, o que ele ainda tem lá ele vai te definir o smallest que você consegue.
+
+Largest quer dizer o maior de todos e disable quer dizer: “Para aí porque deu uma caca grande e eu não quero sair consumindo mensagem”. 
+
+Para não correr o risco de consumir de novo, para não correr o risco de deixar de consumir eu simplesmente estou falando: “Não levanta, para porque eu não quero lidar com isso”, que é o disable, o largest significa o que já estávamos fazendo.
+
+Se eu estou pedindo para ir pelo maior de todos, significa que se não tem informação do offset ele vai para o maior de todos, quer dizer, ele começa já no primeiro, o que eu posso fazer agora? 
+
+Eu posso dar stop em tudo mundo e testar tudo de novo, podem ter outras maneiras de fazer isso, mas vamos fazer tudo do zero, por isso eu pedi para limparmos, vamos limpar tudo, sem dó, estou destruindo todos os nossos hubs, os nossos brokers, cinco brokers que vão embora e quando eles forem embora, eu vou matar também o meu Zookeeper.
+
+Destruí o Zookeeper, por quê? 
+
+Porque eu vou apagar todos os dados, começar o meu Zookeeper e começar tudo de novo, só antes de começar de novo, quero ter certeza que está tudo parado porque eu não quero ninguém comunicando, falando cadê o tópico tal, porque ele já vai criar o tópico tal e eu não quero que ele crie o tópico tal, eu quero fazer igual fizemos antes para vermos que o largest é exatamente o que tínhamos feito.
+
+Sim, vamos fazer tudo isso de novo com um smallest também, comecei tudo, vou rodar o meu http, rodo ele, quando ele rodar, eu vou chamar a requisição que eu quero chamar, a mensagem vai ser enviada, eu vou rodar o nosso EmailNewOrderService que não deveria capturar essa mensagem de novo.
+
+Por quê? 
+
+Vou nos meus tópicos e no ConsumerGroups, temos os nossos tópicos, no ConsumerGroups ainda não tem ninguém consumindo porque o EmailNewOrderService não levantou direito, comecei ele e ele está falando, estou tentando, o Cluster Id é esse, eu encontrei o Producer 1 e 2, duas Thread de produção, encontrei a Thread do nosso pool de envio.
+
+Terminei de levantar, eu posso conferir e é importante conferir que nenhum deles está falando de tópicos antigos, porque qualquer coisa que você deixou ali nos tópicos antigos ele ficará doido, porque vai ter mensagens que apagamos pela metade, aos tópicos, eu estou querendo um reset limpo porque o diretório novo de log do Kafka e do Zookeeper, porque eu quero que vejamos o primeiro caso específico quando um novo serviço entra no ar, como podemos lidar com essas situações, quando um novo ConsumerGroup entra no ar.
+
+Eu vou rodar agora o nosso HttpEcommerceService, rodo ele, posso fazer a requisição, fiz a requisição, enviou a mensagem, podemos conferir os tópicos, o tópico está lá? 
+
+Com três partições, diferente da última vez, o que eu posso fazer agora? 
+
+Eu posso pedir para o nosso EmailNewOrderService rodar. 
+
+O EmailNewOrderService, agora no consumo, está falando o quê? 
+
+Para começar com o mais recente, o maior valor de todos, ele vai pedir o maior valor de todos, pediu e ele está rodando aqui.
+
+Se eu tentar enviar uma nova mensagem o que acontece? 
+
+A nova mensagem foi enviada? 
+
+Foi enviada e agora vamos lá nos ConsumerGroups, esperamos, ele levanta e você vê lá, Producer está lá e você vê que ele trava aqui nos Producers, ele não está gerando um ConsumerGroup para nós, ele não chegou como antes e falou, o offset estava no tal e eu estou indo para o tal, que está acontecendo? 
+
+#### AUTO_OFFSET
+#### AUTO_OFFSET_RESET_CONFIG
+O problema é essa configuração do AUTO_OFFSET.
+
+Se formos lá no ConsumerConfig, o AUTO_OFFSET_RESET_CONFIG fala desses valores que temos que passar, o largest, smallest, disable, etc, só que qual é o problema? 
+
+```diff
+- O problema é que esse AUTO_OFFSET_RESET_CONFIG, ao invés de largest, ele é latest, Consume live messages in Kafka versão 2.3.0 da API.
+```
+
+Toma muito cuidado quando você vai acessar a API do Kafka, como teve uma mudança grande aqui, **você pode cair na versão antiga dele** que tem certas coisas que são diferentes, no **AUTO_OFFSET_RESET_CONFIG** está, essa é a versão 2 do Kafka, lembra que é a versão que nós estamos utilizando? 
+
+"ConsumerConfig" e podemos procurar o "latest" e você vai achar as documentações, pessoas citando da utilização do latest e é ele te queremos utilizar, podemos olhar aqui que tem um exemplo, latest ao invés de largest, voltamos para cá, colocamos latest e restartamos o nosso EmailNewOrderService.
+
+Toma cuidado com a versão documentação, como teve quebra de API e pior ainda, API é baseada em String em algumas situações nas implementações de Kafka em algumas linguagens, quando teve quebra, que foi de um major release, etc, a quebra é grande.
+
+Agora ele fala, estou settando o offset para a posição tal, ele está indo agora para offset que é a nossa posição, vamos dar uma olhada no ConsumerGroup, eu enviei uma segunda mensagem, acredito que eu tenho duas mensagens, ele já está no CURRENT-OFFSET 2, é isso que ele está fazendo.
+
+Você fala: “Mostra para mim que o latest está funcionando, mostra de novo, restarta de novo e mostra de novo.” 
+
+Dá para roubarmos só para testar, lembra que é por ConsumerGroup? 
+
+Se ao invés de eu decidir que eu defini isso, eu definir isso daqui, eu estou com um ConsumerGroup novo, basta eu rodar de novo que agora eu estou com um ConsumerGroup novo e consigo ver que ele já vai começar na segunda mensagem, porque eu fiz a minha requisição http duas vezes.
+
+Vamos dar uma olhada, já vai estar no 2, nesse ConsumerGroup novo que é o 1EmailNewOrderService já está no 2, por quê? 
+
+Porque ele já está lá para frente, esse é o latest, assim como vimos o latest tem também o "earliest", só para vermos, eu vou criar um ConsumerGroup temporário, vou rodar, se eu tenho duas mensagem sem disco que ainda não foram apagadas por causa do tempo, por causa do espaço e eu estou falando para pegar o earliest, o que ele vai fazer? 
+
+Consumir as duas.
+
+Vamos dar uma olhada? 
+
+Olha ele falando para nós, não achei offsets, então eu estou zerando os offsets, porque você pediu o earliest, então eu encontrei a primeira mensagem, então eu encontrei a segunda mensagem e eu processei as duas mensagens.
+
+O **latest** e o **earliest** são fundamentais para sabermos se queremos sair processando o que tinha no passado ou não quando temos um novo ConsumerGroup ou quando por algum motivo você perdeu o offset, por qualquer motivo você perdeu o offset, o latest e o earliest, o mais antigo ou mais recente servem para dizer isso.
+
+Por que não mais o maior ou o menor? 
+
+Porque o maior ou menor assumem que tem que ser numérico essa sequência dos offsets e não necessariamente precisariamos lidar com isso, ele pode implementar isso de outros algoritmos que não precisamos nos preocupar se ele quiser implementar e a coisa continuaria funcionando com o mais recente ou mais antigo, timestamp, seja lá o que for, ou algum id baseado em timestamp.

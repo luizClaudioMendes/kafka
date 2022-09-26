@@ -63,6 +63,7 @@ public class KafkaService<T> implements Closeable {
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupID);// consumer group name
         properties.setProperty(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());// client name
         properties.setProperty(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1"); // consome no maximo 1 mensagem por vez
+        properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest"); // earliest //default latest after version 2.
 
         properties.putAll(overrideProperties);//sobrescreve as propriedades
         return properties;
