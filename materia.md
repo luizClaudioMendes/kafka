@@ -127,6 +127,11 @@ terminado em
       - [OFFSET_RESET_CONFIG](#offset_reset_config)
       - [AUTO_OFFSET](#auto_offset)
       - [AUTO_OFFSET_RESET_CONFIG](#auto_offset_reset_config)
+    - [O que aprendemos?](#o-que-aprendemos-15)
+  - [Lidando com mensagens duplicadas](#lidando-com-mensagens-duplicadas)
+    - [O problema da mensagem duplicada](#o-problema-da-mensagem-duplicada)
+      - [AUTO_COMMIT_INTERVAL_MS_CONFIG](#auto_commit_interval_ms_config)
+      - [ACKS_CONFIG](#acks_config)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6663,3 +6668,44 @@ O **latest** e o **earliest** são fundamentais para sabermos se queremos sair p
 Por que não mais o maior ou o menor? 
 
 Porque o maior ou menor assumem que tem que ser numérico essa sequência dos offsets e não necessariamente precisariamos lidar com isso, ele pode implementar isso de outros algoritmos que não precisamos nos preocupar se ele quiser implementar e a coisa continuaria funcionando com o mais recente ou mais antigo, timestamp, seja lá o que for, ou algum id baseado em timestamp.
+
+### O que aprendemos?
+* como lidar com latest e earliest
+
+## Lidando com mensagens duplicadas
+### O problema da mensagem duplicada
+Já vimos que com a configuração earliest ou latest na situação de um novo ConsumerGroup conseguimos decidir se queremos consumir lá para trás ou aqui para frente, já falamos também lá para trás sobre algumas características do Commit de uma mensagem, eu cheguei a comentar em alguns momentos, se procurarmos no “COMMIT” que ele é feito automaticamente de tanto em tanto tempo, você tem um intervalo de configuração aqui.
+
+#### AUTO_COMMIT_INTERVAL_MS_CONFIG
+Deixa-me ver se tem os valores, AUTO_COMMIT_INTERVAL_MS_CONFIG e esse commit de milissegundos, ativar ou desativá-lo significa que vamos fazer manual o Commit se quisermos, existem algumas situações em que o que pode acontecer? 
+
+À medida que íamos fazer um Commit, mas ainda não fizemos o AUTO-COMMIT, porque ainda não passaram os segundos necessários o meu broker de mensagens tem certeza que eu ainda não consumi.
+
+Por quê? 
+
+Porque eu ainda não Commitei, mas se eu já fiz o processo da mensagem e ainda não pedi a próxima mensagem, não Commitei pelo AUTO-COMMIT e eu paro de funcionar, quando eu levanto de novo, o que acontece? 
+
+Eu vou consumir uma mensagem novamente que eu já tinha processado.
+
+E entramos em um problema que é o seguinte: 
+
+podemos configurar os nossos serviços de certa maneira, os produtores e consumidores, em que não liguemos se perdermos mensagem, vimos isso com o acks, o acknowledgement, se não estamos preocupados, simplesmente ele vai em algum momento enviar a mensagem, nem precisa ser nesse instante e eu não estou nem aí, pronto, talvez eu perca mensagens, é uma abordagem.
+
+#### ACKS_CONFIG
+Vimos também um outro sistema em que queremos todo mundo em sync, o ACKS_CONFIG que vai falar para nós que queremos todo mundo, ainda junto com o ACXS, tem mais um detalhe, antes da terceira abordagem.
+
+No ACKS ALL temos o mínimo de réplicas insync, quando estamos com o ACXS ALL, podemos falar o que quer dizer esse all na verdade, eu quero que seja duas insync, três insync, cinco insync, você pode configurar, ela dá até um exemplo aqui, um cenário típico seria um tópico com três réplicas e o min.insync réplica com dois, assim a maioria vai ter, mas como eu citei, tem empresas que usam o all, se são três réplicas, são três all como all mesmo.
+
+Eu quero que seja replicado todo mundo, mesmo que isso me dê um lag maior, para eu ter certeza que a mensagem foi enviada, mas pelo menos eu tenho garantia que ela está escrita em três lugares, mesmo que dois caiam eu tenho como ler ela e por aí vai para frente.
+
+Vimos isso, só que, qual é a abordagem do meio do caminho que ainda não resolvemos? 
+
+Temos um caminho que garante que a mensagem seja entregue, um carinha que eu não estou nem aí se a mensagem vai ser entregue, mas do outro lado o que eu tenho? 
+
+Se eu não estou nem aí, talvez eu receba ela uma vez, se eu estou preocupado, talvez ela receba uma vez, mas eu acabei de citar, talvez eu receba ela, não Commit, processe, não deu tempo de Commitar e eu receba ela de novo, isso é, eu recebo a mensagem duas vezes.
+
+Tem um caso em que eu não ligo, quer dizer, eu posso receber 0 ou mais que eu não estou muito preocupado, tem o caso que é o que estamos discutindo por enquanto, que na verdade recebemos a mensagem uma ou mais vezes, podemos correr o risco de receber a mesma mensagem duas vezes, em situações bem extremas e se eu quiser receber exatamente uma vez, como eu posso fazer isso? 
+
+É uma questão fundamental em muitos sistemas, como podemos tentar garantir isso? 
+
+Vamos dar uma olhadinha.
