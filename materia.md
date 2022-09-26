@@ -132,6 +132,13 @@ terminado em
     - [O problema da mensagem duplicada](#o-problema-da-mensagem-duplicada)
       - [AUTO_COMMIT_INTERVAL_MS_CONFIG](#auto_commit_interval_ms_config)
       - [ACKS_CONFIG](#acks_config)
+  - [Kafka transacional](#kafka-transacional)
+      - [TRANSACTIONAL_ID_CONFIG](#transactional_id_config)
+      - [MAX_IN_FLIGHT_REQUESTS](#max_in_flight_requests)
+      - [ENABLE_AUTO_COMMIT](#enable_auto_commit)
+      - [AUTO_OFFSET_RESET_CONFIG](#auto_offset_reset_config-1)
+      - [ISOLATION_LEVEL](#isolation_level)
+      - [Kafka Transactions (https://itnext.io/kafka-transaction-56f022af1b0c)](#kafka-transactions-httpsitnextiokafka-transaction-56f022af1b0c)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6709,3 +6716,334 @@ Tem um caso em que eu não ligo, quer dizer, eu posso receber 0 ou mais que eu n
 É uma questão fundamental em muitos sistemas, como podemos tentar garantir isso? 
 
 Vamos dar uma olhadinha.
+
+## Kafka transacional
+Eu comentei que tem cenários onde queremos certos tipos entregas de mensagens, falamos sobre o envio, mas eu queria saber agora sobre a entrega dessa mensagem para quem quer receber ela.
+
+Existe um post que eu gosto bastante que simplesmente chama Kafka Transaction e a verdade é que: pelo menos uma vez, ou no máximo uma vez, são tipos de trabalho que podemos ter no Kafka com o que já fizemos, pelo menos uma vez será entregue essa mensagem, mas tem vezes em que gostaríamos que ela fosse entregue exatamente uma vez, para isso acontecer, ele dá três exemplos em que isso pode acontecer, quando pode acontecer, mas tem situações em que queremos isso.
+
+Temos que configurar o nosso produtor e o nosso consumidor para serem capazes de entregar e receber somente uma vez e exatamente uma vez e existem diversas configurações para serem feitas exatamente para esse cenário.
+
+#### TRANSACTIONAL_ID_CONFIG
+Por exemplo, no produtor temos algumas configurações de produção, que seria meio que um copy e paste como fine tuning do que você precisar, algumas já falamos, por exemplo TRANSACTIONAL_ID_CONFIG não falamos, mas é um ID único para o seu produtor, é isso.
+
+Ativar idempotência, é uma opção que tem que ser true, vamos falar o que é idempotência, ACXS_CONFIG tem que ser all que já falamos, RETRIES_CONFIG, quantas vezes ele vai retentar, tem que ser mais do que uma, porque tem que ser pelo menos uma? 
+
+Tem que ser maior do que zero, talvez ele tenha errado no post, tem que ser maior ou igual a 1, ele falou maior do que um, mas acredito que é maior ou igual a 1.
+
+#### MAX_IN_FLIGHT_REQUESTS
+Quer dizer que se eu não consigo entregar, Tenta de novo, mas ele tinha aquele problema em que ele tenta entregar o pacote daqui a pouco e de agora ele se deu mal, então o MAX_IN_FLIGHT_REQUESTS tem que ser um, lembram que eu havia comentado disso lá atrás.
+
+Essas são as configurações do Produtor e você consegue enviar as mensagens, você produz as mensagens e envia, na parte de enviar mensagem não tem muito segredo, é só você enviar, você pode dar um producer.commitTransaction manual.
+
+E na hora de receber? 
+
+Na hora de receber é uma trabalheira e temos algumas desvantagens, você vai ver que vai ser praticamente um trabalho de outra maneira quando possível, eu quero só mostrar justamente para que fujamos dessa quando possível, a outra vamos ver que é mais natural em muitas situações e aceitável.
+
+O que fazemos? 
+
+No cliente que vai consumir, fazemos algumas coisas, desativamos o AUTO_COMMIT, afinal se ele Commitar e eu ainda estou processando eu me dei muito mal, eu vou ter que desativar o AUTO_COMMIT, eu vou falar para ler do earliest e não do latest, quer dizer, eu estou correndo risco de ler duas vezes quando eu falei o earliest aqui e eu falo que o nível de isolamento é read_committed, vamos passar que ele escreve cada um de novo.
+
+#### ENABLE_AUTO_COMMIT
+ENABLE_AUTO_COMMIT é false porque vamos controlar o Commit do offset manualmente, 
+
+#### AUTO_OFFSET_RESET_CONFIG
+AUTO_OFFSET_RESET_CONFIG é earliest, quer dizer que não tem esse offset, nós que vamos lidar com esse primeiro offset de todos e o nível de isolamento é read_committed, quer dizer que somente mensagens Commitadas vão ser consumidas, commitadas significa no sentido de enviadas para o nosso líder e para as réplicas que forem necessárias.
+
+#### ISOLATION_LEVEL
+Eu poderia colocar um ISOLATION_LEVEL em que escreveu para um producer, imagina que eu sou um producer, escrevi em um broker, o producer que está esperando o acxs all ainda não recebeu a confirmação, mas se o ISOLATION_LEVEL é menor o que acontece? 
+
+Alguém que quer consumir essa mensagem já pode consumir essa mensagem porque a mensagem já está lá, mesmo que ela não tenha sido replicada nas outras duas.
+
+Reparem agora que quando os dois lados se conectam a complexidade fica maior, por quê? 
+
+Porque quem produz quer um acknowledgement de 3, mas quem consome pode consumir quanto? 
+
+Só um, ou tem que esperar estar replicado para consumir? 
+
+Porque reparem, se eu consumir antes de estar replicado e de repente não consegue replicar, pode ser que o produtor envie novamente a mensagem, essa mensagem seja uma nova e eu consuma de novo, pode acontecer coisas do gênero.
+
+Reparem que começa a cair em casos mais complexos, nessa situação queremos um ISOLATION_LEVEL que diz: “**Se o produtor está fazendo a transação dessas três réplicas, enquanto ele não terminar eu não leio, eu espero**.” 
+
+Esse é o read_committed, só vai ler o que está Commitado no sentido de que foi enviado para as n réplicas.
+
+Fazemos essa configuração, até aí só configuração e outras configurações a mais que você queira ter no seu consumidor e o código? 
+
+Primeiro vamos dar um Subscribe. 
+
+Subscribe nós sabemos fazer, só que ele já passa um parâmetro a mais que vamos ver daqui a pouco, que é para o rebalanceamento, só para o rebalanceamento vai ter um parâmetro a mais.
+
+Damos um poll de algum tempo mínimo, para ver que estou com heartbeat, estou vivo, me dá, será que tem alguma coisa, só que o que é o ‘será que tem alguma coisa’? 
+
+Pedimos para o nosso consumidor o assignment que são as partições, ele devolve para nós as partições, aqui estão nossa partições e o que queremos fazer? 
+
+Quando temos essas partições, para cada uma dessas partições que eu estou responsável, imagina que eu estou responsável pelas partições 0, 3 e 17, eu tenho 50 partições, eu estou nas 0, 3 e 17.
+
+Eu preciso saber em que ponto eu estou de cada uma dessas partições, imagina que eu estou dentro desse for na partição 0, onde eu estou? 
+
+Lembram que o offset não está controlado mais pelo Kafka, está controlado por mim? 
+
+Eu armazenei esse meu offset em algum lugar, em um banco de dados, em um arquivo em disco, sei lá onde.
+
+Você lê o offset do seu banco, você fala para o seu banco de dados qual é o seu groupId, você fala qual é a partição do seu tópico e ele te devolve o seu offset, o que você faz? 
+
+Você faz uma busca no consumidor para ele ir para esse offset, nessa partição vai para esse offset, cheguei nesse offset, agora que eu estou nesse offset, eu vou começar a consumir e ele começa a consumir.
+
+Agora ela faz o consumer.seek para ir nessa posição, nessa partição desse tópico nesse offset e ele vai para o próximo topicPartition e faz a mesma coisa, o que ele está fazendo? 
+
+Se eu dei três partições para você, você vai reposicionar seus cursores na posição da partição que você quer, não é bem posicionar o cursor, é só notificar, eu estou na 15, estou na 17, estou na 13 em cada uma dessas três partições, meio que isso que você está dizendo.
+
+Você entra no laço real agora, você tinha um poll rápido só para você receber as suas partições, agora que você recebeu as suas partições você deu seek nelas e agora que você deu seek nelas o que você faz? 
+
+Você começa a consumir, como você consome? 
+
+Aquele for nosso normal, consome, processa com o que você tem que processar, faz o que você tem que fazer.
+
+E você fala: “Eu queria enviar um e-mail.” Envia um e-mail. “Eu queria gravar em um banco de dados.” Grava no banco de dados e você salva no seu banco que o ID, para esse ConsumerGroup, para esse tópico, para essa partição é esse o offset, estou gravando local agora o meu offset.
+
+Reparem que se você está trabalhando em um banco de dados, se o banco armazena esses dois valores, maravilha, porque você coloca esses dois valores na mesma transação do banco, isto é, você começa uma transação no seu banco, você está usando Datomic, está usando SQL, não importa, você começa uma transação, nessa transação você salva o quê? 
+
+Os dados que você quer salvar e o teu offset novo.
+
+Isto é, se a transação falhar, você não Commitou nem os dados nem o offset, você não precisou fazer um two fase commit em dois sistemas diferentes, no Kafka e no banco, está tudo no banco, tudo que você faz no banco agora, se você tem um offset no teu próprio banco, maravilha.
+
+Para quem vai trabalhar com um serviço que tem o banco, dessa maneira você está garantido que, se você conseguir salvar no banco e conseguir salvar o seu offset no banco, maravilha, a sua transação está joinha.
+
+Claro, se você enviou um e-mail e o serviço externo enviou o e-mail, salvar o offset no banco não vai adiantar da mesma maneira, não tem como, é aquele caso infeliz, você apertou o botão para lançar um foguete e o foguete já foi lançado, não dá para desapertar o botão você tem que ter outras estruturas para conseguir voltar atrás nesse tipo de coisa, mas você tem que se comunicar com uma coisa que não está mais na sua mão, um e-mail que não está mais na sua mão mais, que é diferente.
+
+Reparem que essa abordagem significa o quê? 
+
+Significa - ele vai explicando o código pedaço a pedaço - que você vai ser capaz de processar a mensagem uma única vez com sucesso, se falhar, talvez você processe de novo, tente processar de novo com sucesso, ou com falha, mas se deu sucesso, você só processou uma vez.
+
+Isso pensando que onde você Commita o offset é o mesmo lugar que você o lê o offset, que é o mesmo lugar em que você está armazenando esses dados, esta é uma abordagem para quem está utilizando, por exemplo, o banco de dados.
+
+Lembram que eu falei que você tinha que passar o subscribe em uma outra classe para rebalanceamento, está aqui a classe do rebalanceamento, você tem que redefinir os offsets do banco de dados, por quê? 
+
+Porque se você vai rebalancear você tem que pegar os offsets que você estava e passar para as outras pessoas.
+
+E as outras pessoas que estão passando os offsets vão ter que ler de alguma maneira esses novos offsets, de alguma maneira eles tem que fazer essa passagem, então aqui ele faz essa passagem de alguma maneira, não importa a maneira que você vai passar esses valores dentro do teu próprio banco.
+
+Esse é um post “simples” que mostra como ficaria esse processo se eu quero garantir no meu banco que quando eu faço um insert qualquer, um select qualquer, um delete qualquer ou qualquer coisa que eu quero fazer no meu banco, eu processe aquilo uma única vez de uma maneira transacional, esse Kafka Transaction que ele chamou.
+
+Existe uma outra abordagem para fazermos isso e eu quero mostrar a outra abordagem que é mais natural, literalmente no sentido natural da palavra e vem de bônus para nós em diversas situações.
+
+#### Kafka Transactions (https://itnext.io/kafka-transaction-56f022af1b0c)
+Kafka Transaction
+
+Photo by Annie Spratt on Unsplash
+For most cases from my experiences, at least-once or at most-once processing using Kafka was enough and allowed to process message events.
+
+It is not easy to achieve transactional processing in Kafka, because it was not born for the transactional nature, I think.
+
+In the next, let’s see why it is hard to get the whole transactional processing in an application using Kafka Streams which can do complex processing in your streaming application.
+
+A kafka streams application can consist of many processing cycles of consum-process-produce. You can meet the following situations with your Kafka Streams application in many times:
+
+If you use Kafka Streams in your application, there can be a lot of calls of the functions like map(), through(), transform(), flatMap(), etc , where repartitioning will occur, that is, new topics with intermediate topics will be created with new topic key.
+If your kafka streams application is stateful, the local state will be synced to the changelog topic asynchronously.
+If you have to save processing results to external DB in the middle of processing in your kafka streams application, you have to consider saving offsets to the same external DB too.
+As seen in the above situations, there can be a lot of consuming, processing, producing processes with many different data storages like kafka, local storage, and external databases, where all the transactions have to be committed in atomic way. But it is really hard to achieve the whole transactions commit in the atomic manner in your kafka streams application.
+
+Rather, it should be divided to the individual consume-process-produce cycle.
+
+Now, I will show you how to do producer-side transaction and consumer-side transaction to accomplish exactly-once processing in Kafka:
+
+In producer-side transaction, kafka producer sends avro messages with transactional configuration using kafka transaction api.
+In consumer-side transaction, kafka consumer consumes avro messages from the topic, processes them, save processed results to the external db where the offsets are also saved to the same external db, and finally all the db transactions will be commited in the atomic way.
+The complete codes for this article can be found in my github repo:
+
+mykidong/kafka-transaction-example
+You can't perform that action at this time. You signed in with another tab or window. You signed out in another tab or…
+github.com
+
+Transactional Kafka Producer
+Let’s first discuss producer-side transaction in kafka.
+
+The following transactional properties for the producer can be set:
+
+        // transaction properties.
+        props.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionalId); // unique transactional id.
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);
+       props.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 1);
+        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 600000);
+ProducerConfig.TRANSACTIONAL_ID_CONFIG must be unique transactional id for the individual kafka producer.
+ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG must be true.
+ProducerConfig.ACKS_CONFIG is all , that is, all the leader and follower brokers have committed messages to the log.
+ProducerConfig.RETRIES_CONFIG should be larger than 1 to try to request many times falls the request failed.
+ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION is 1, it means ordered sequence will be guaranteed.
+Let’s see the messages sent by kafka producer transactionally:
+
+// construct producer.
+KafkaProducer<UserKey, Events> producer = new KafkaProducer<>(props);
+
+// initiate transaction.
+producer.initTransactions();
+log.info("tx init...");
+try {
+    // begin transaction.
+    producer.beginTransaction();
+    log.info("tx begun...");
+
+    for(int i = 0; i < 20; i++) {
+        Events events = new Events();
+        events.setCustomerId("customer-id-" + (i % 5));
+        events.setOrderInfo("some order info " + new Date().toString() + "-" + i);
+
+        Date date = new Date();
+        events.setEventTime(date.getTime());
+
+
+        UserKey key = new UserKey(events.getCustomerId().toString(), date);
+
+
+        // send messages.
+        Future<RecordMetadata> response = producer.send(new ProducerRecord<UserKey, Events>(topic, key, events));
+        log.info("message sent ... " + new Date().toString() + "-" + i);
+
+        RecordMetadata recordMetadata = response.get();
+        log.info("response - topic [{}], partition [{}], offset [{}]", Arrays.asList(recordMetadata.topic(), recordMetadata.partition(), recordMetadata.offset()).toArray());
+    }
+
+    // commit transaction.
+    producer.commitTransaction();
+    log.info("tx committed...");
+
+} catch (KafkaException e) {
+    // For all other exceptions, just abort the transaction and try again.
+    producer.abortTransaction();
+}
+
+// close producer.
+producer.close();
+Before sending messages, Kafka producer Transaction has to be initialized: producer.initTransactions()
+After sending messages, commit transaction: producer.commitTransaction()
+If exceptions occurred, abort transaction: producer.abortTransaction()
+Transactional Kafka Consumer
+Now, let’s see the consumer-side transaction.
+
+In my scenario, you have to consume, process messages, and save the processed results to the external database. At the same time, the offset also has to be saved to the same external database.
+
+Before moving to consuming messages, let’s see the db table offset schema which can be found in the above git repo:
+
+CREATE TABLE `offset` (
+    `group_id` VARCHAR(255),
+   `topic` VARCHAR(255),
+   `partition` INT,
+   `offset` BIGINT,
+   PRIMARY KEY (`group_id`, `topic`, `partition`)
+);
+This is offset table which the offsets will be saved onto and retrieved from for the individual topic partition of the consumer group.
+
+To consume messages transactionally, the following configuration can be set to the consumer:
+
+        // transaction properties.
+        props.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+ConsumerConfig.ISOLATION_LEVEL_CONFIG must be read_committed , it means that only committed messages will be consumed by consumer. ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG must be false , which means that the consumer will control the offset commit manually.
+ConsumerConfig.AUTO_OFFSET_RESET_CONFIG should be earliest , it means if there is no offset commit for the partition consumed by the consumer with the specified consumer group id, the consumer will consume the messages from the first offset in the partition.
+Now, kafka consumer will consume messages with these transactional configurations:
+
+try {
+    // consumer subscribe with consumer rebalance listener.
+    consumer.subscribe(Arrays.asList(topic), new TransactionalConsumerRebalanceListener(this));
+    consumer.poll(0);
+
+    // When the consumer first starts, after we subscribed to topics, we call poll()
+    // once to make sure we join a consumer group and get assigned partitions and
+    // then we immediately seek() to the correct offset in the partitions we are assigned
+    // to. Keep in mind that seek() only updates the position we are consuming from,
+    // so the next poll() will fetch the right messages.
+    for (TopicPartition topicPartition : this.consumer.assignment()) {
+        long offset = getOffsetFromDB(groupId, topicPartition);
+        consumer.seek(topicPartition, offset);
+        log.info("consumer seek to the offset [{}] with groupId [{}], topic [{}] and parition [{}]", Arrays.asList(offset, groupId, topicPartition.topic(), topicPartition.partition()).toArray());
+    }
+
+
+    while (true) {
+        // if wakeupCalled flag set to true, throw WakeupException to exit, before that flushing message by producer
+        // and offsets committed by consumer will occur.
+        if (this.wakeupCalled) {
+            throw new WakeupException();
+        }
+
+        ConsumerRecords<String, Events> records = consumer.poll(100);
+        if(!records.isEmpty()) {
+            for (ConsumerRecord<String, Events> record : records) {
+                String key = record.key();
+                Events events = record.value();
+
+                log.info("key: [" + key + "], events: [" + events.toString() + "], topic: [" + record.topic() + "], partition: [" + record.partition() + "], offset: [" + record.offset() + "]");
+
+                // process events.
+                processEvents(events);
+
+                // an action involved in this db transaction.
+
+                // NOTE: if consumers run with difference group id, avoid saving duplicated events to db.
+                saveEventsToDB(events);
+
+                // another action involved in this db transaction.
+                saveOffsetsToDB(groupId, record.topic(), record.partition(), record.offset());
+            }
+
+            commitDBTransaction();
+        }
+    }
+
+} catch (WakeupException e) {
+
+} finally {
+    commitDBTransaction();
+    this.consumer.close();
+}
+The consumer will subscribe the messages from the topic with consumer rebalance listener:
+
+consumer.subscribe(Arrays.asList(topic), new TransactionalConsumerRebalanceListener(this));
+In TransactionalConsumerRebalanceListener consumer rebalance listener, the db transactions will be committed before the rebalancing is started, and consumer will seek to the offset from the database after the consumer is assigned to the specific partition:
+
+public class TransactionalConsumerRebalanceListener<K, V> implements ConsumerRebalanceListener {
+
+    private static Logger log = LoggerFactory.getLogger(TransactionalConsumerRebalanceListener.class);
+
+    private AbstractConsumerHandler<K, V> consumeHandler;
+
+    public TransactionalConsumerRebalanceListener(AbstractConsumerHandler<K, V> consumeHandler)
+    {
+        this.consumeHandler = consumeHandler;
+    }
+
+    @Override
+    public void onPartitionsRevoked(Collection<TopicPartition> collection) {
+        // commit db transaction for saving records and offsets to db.
+        this.consumeHandler.commitDBTransaction();
+    }
+
+    @Override
+    public void onPartitionsAssigned(Collection<TopicPartition> topicPartitions) {
+        for(TopicPartition topicPartition : topicPartitions)
+        {
+            // get offset from db and let consumer seek to this offset.
+            String groupId = this.consumeHandler.groupId;
+            long offset = this.consumeHandler.getOffsetFromDB(groupId, topicPartition);
+            this.consumeHandler.getConsumer().seek(topicPartition, offset);
+
+            log.info("in rebalance listener, consumer seek to the offset [{}] with groupId [{}], topic [{}] and parition [{}]", Arrays.asList(offset, groupId, topicPartition.topic(), topicPartition.partition()).toArray());
+        }
+    }
+}
+When the consumer is restarted, the consumer will look up the last updated offset from the database for the partition:
+
+long offset = getOffsetFromDB(groupId, topicPartition);
+consumer.seek(topicPartition, offset);
+Take a look at the saveEventsToDB() and saveOffsetsToDB() where the processed results and offsets will be saved to the same external database. Finally, all the db transactions will be committed with commitDBTransaction().
+
+Exactly-once processing is not easy in Kafka, but as mentioned in this article, you should consider producer- and consumer-side transaction seperately, and try to achieve transactional processing.
+
+You can see the following wiki pages about the details to run the codes in this article from my github repo:
+
+https://github.com/mykidong/kafka-transaction-example/wiki/Run-Transactional-Kafka-Producer-and-Consumers
+https://github.com/mykidong/kafka-transaction-example/wiki/Scenario
