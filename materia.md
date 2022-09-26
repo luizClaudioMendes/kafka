@@ -117,6 +117,8 @@ terminado em
 - [Kafka: idempotencia e garantias](#kafka-idempotencia-e-garantias)
   - [Organização e lidando com múltiplos tópicos de envio em um mesmo serviço](#organização-e-lidando-com-múltiplos-tópicos-de-envio-em-um-mesmo-serviço)
     - [Micro serviços de email e fast delegate real](#micro-serviços-de-email-e-fast-delegate-real)
+  - [camada de serviços](#camada-de-serviços)
+    - [Extraindo uma camada de serviços](#extraindo-uma-camada-de-serviços)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6235,3 +6237,105 @@ Claro, esse daqui poderia utilizar uma biblioteca common-email que só te ajuda 
 Mas a sacada é, realmente vão ter muitos serviços minúsculos, que basicamente não tem consumo de CPU, de vez em quando vai precisar de CPU e é muito fácil de manter porque basicamente são uma ou duas classes que fazem alguma coisa bem específica de forma assíncrona sem nos preocuparmos, perceberam porque cresce bastante a quantidade de serviços quando você começa a trabalhar com realmente micro serviços? 
 
 E aqui na mensageria podemos trabalhar dessa maneira.
+
+## camada de serviços
+### Extraindo uma camada de serviços
+Nosso próximo passo é dar uma olhada nesses nossos serviços, lembram quando eu estava extraindo o código do serviço? 
+
+Eu falei que os nossos consumers são Kafka Services que são Closeable, isto é, quando eu começo um serviço novo, por exemplo, o emailService eu falo para ele, cria um emailService que é essa minha classe, cria um KafkaService, fica no run dele e acabou, se der alguma Exception no meu run ele para o meu programa é isso.
+
+Além disso, se eu quiser rodar dois emailServices ao mesmo tempo, o que eu tenho que fazer? 
+
+Tenho que rodar o mesmo programa duas vezes ao mesmo tempo, em algumas linguagens que têm um baixo Impacto de memória e startup, isso é comum de ser feito, você faz o quê? 
+
+Você roda um processo na sua máquina para cada instância do serviço você vai querer rodar junto com o Kafka.
+
+Agora quando você tem uma linguagem que tem suas vantagens de compartilhar isso em diversas threads e desvantagem de ter, de repente, um Load Startup maior, você pode querer executar diversos desses serviços no mesmo processo da sua máquina, você pode querer rodar 10 emailServices dentro da mesma Virtual Machine por exemplo, do Java, dentro dessa máquina, poderia estar usando o closure aqui dentro da mesma Virtual Machine 10 instâncias desse serviço emailService rodando, poderia querer fazer isso.
+
+O que eu gostaria de fazer? 
+
+Tem duas abordagens diferentes, uma seria, reparem que a classe emailService não tem estado, literalmente eu poderia fazer que esse service.run fosse rodado 30 vezes, podia chamar 30 desse service.run que funcionaria? 
+
+Não sei, porque o service.run está no KafkaService e não no emailService, quer dizer, o método parse, como não tem estado na classe emailService, maravilha, mas e o KafkaService? 
+
+O KafkaService tem estado, tem o KafkaConsumer e tem o ConsumerFunction.
+
+A ConsumerFunction, a nossa função não tem estado externo a ela que acessamos, não tem problema, mas o KafkaConsumer, se eu chamar duas vezes o poll, sempre podemos ir na documentação do Kafka, “KafkaConsumer” e “KafkaDispatcher”. 
+
+Primeiro, no KafkaDispatcher que é despachar um e-mail, então “Java Class KafkaProducer”.
+
+No KafkaProducer você vai procurar a palavra “thread” e você acha logo, é thread-safe, você pode fazê-lo em várias threads, usar o mesmo Producer em várias threads e o Consumer, eu posso usar ele em várias threads? 
+
+Ele não é thread-safe.
+
+E tem uma área só de Multi-thread, como podemos lidar com o Multi-thread? 
+
+Tem algumas abordagens para trabalharmos com Multi-thread, ele dá algumas sugestões de como você pode trabalhar, um consumidor por Thread, desacoplar o consumo do processamento, isto é, você consome a mensagem e joga para outra Thread para processar por exemplo, você pode ter um consumidor em uma Thread rodando e consumindo.
+
+Outra abordagem é: ela consome a mensagem e já fala: “Dispara na outra Thread o processamento que eu já vou para assumir a próxima mensagem.” 
+
+Quer dizer, se der uma caca na outra Thread talvez você não notifique desse problema.
+
+Então ele dá aqui vantagens e desvantagens dessas abordagens, claro, você pode fazer variações de tudo isso, uma vantagem de uma e a desvantagem que você pegou de cada uma dessas abordagens, o que nós vamos fazer? 
+
+Não vamos compartilhar o KafkaConsumer entre duas Thread, de jeito nenhum e o nosso próprio serviço, o nosso EmailService, vamos criar um por um Thread.
+
+O que eu queria fazer é que o meu EmailService na verdade estendesse de alguma coisa minha que é um serviço, de algum tipo de “Service”, eu poderia usar composição, eu poderia fazer várias coisas.
+
+Qual será a sacada? 
+
+A sacada é que o meu serviço vai ter que ter o meu método run, é o que roda tudo que tem que ser rodado, isto é, o que roda isso aqui, eu vou fazer com que o meu EmailService implemente uma interface do tipo “ConsumerService”. 
+
+O que o ConsumerService vai fazer? 
+
+Vou criar essa interface, vou colocar nesse projeto e depois extraímos, a interface ConsumerService vai ter o quê? 
+
+Ela tem que ter uma função de parse, porque ela vai parsear alguma coisa, ela vai consumir alguma coisa.
+
+Então ela é uma ConsumerService de “Strings”, então ele tem que ter um tipo que é o tipo que ele consome, mas não só um tipo que ele consome, precisa ter também o tópico que será consumido, eu preciso ter um nome “public String getTopic()” que é o tópico que eu vou ficar escutando, “return” esse tópico.
+
+Aqui eu vou chamar simplesmente de “topic”, a função é a parse, não há problema algum, o que eu preciso é dessa função também ali, tanto a função quando o “String getTopic()” são duas funções que eu quero trabalhar, eu tenho o topic e eu tenho a minha “consumerFuncion”, essa daqui é a minha função de consumo que é essa daqui que é o meu parse, vou ter que chamar essas duas coisas, o topic e a ConsumerFunction.
+
+Não estou passando parâmetro extra nenhum por padrão, eu tenho o meu KafkaService e eu tenho que falar qual é o título desse meu serviço que eu estou consumindo, qual é o meu consumerGroup, também vou precisar, “consumerGroup”, vou colocar também “public String getConsumerGroup()”, “return” isso daqui para mim.
+
+Esse getConsumerGroup, a mesma coisa, vai estar onde? 
+
+Na minha interface de um consumidor, todo consumidor vai ter essas três coisas, se todo consumidor tem essas três coisas, olha como ficará o meu método Main, vou cortar e o que eu vou fazer simplesmente é “new ServiceProvider”, eu vou criar um ServiceProvider e vou pedir para rodar, quem? 
+
+Eu vou pedir para rodar vários EmailServices, eu quero rodar diversos EmailServices.
+
+Como eu faço para rodar esses vários EmailServices aqui? 
+
+Tem diversas maneiras de fazer isso, vou fazer dessa daqui, “EmailService” eu posso falar para ele qual é a função que cria um EmailService, é a função new, eu vou criar o meu ServiceProvider, a função run. 
+
+A função run recebe o quê? 
+
+Tem que receber uma “Function” que não recebe “NADA” como parâmetro e devolve um “ConsumerService”, essa é minha “factory”.
+
+Por quê? 
+
+Porque agora que tem essa Factory eu vou poder chamá-la várias vezes e criar várias instâncias no meu EmailService, vamos pensar, como eu quero uma função que não recebe nada e gera um ConsumerService eu vou criar uma Interface para isso, essa minha interface é um “ServiceFactory”.
+
+O que o ServiceFactory faz? 
+
+Ele tem uma única função, é uma interface funcional de Java que devolve um “ConsumerService” do tipo “T” e eu vou chamá-la de “create”, ela é uma “interface”. 
+
+Então ela é uma ServiceFactory, eu vou criar essa ServiceFactory, eu rodo com uma do tipo t, eu tenho que falar que esse método recebe o tipo “”.
+
+E o que eu tenho que fazer agora? 
+
+Eu tenho que falar: “Factory, por favor, crie.” 
+
+Quando ela cria, o que ela devolve para mim? 
+
+Ela devolve o meu “emailService” e aí é só eu falar “emailService.getConsumerGroup()”, “emailService.getTopic()”, “emailService::parse” e eu vou chamar o meu run. 
+
+O meu run pode dar uma exception enquanto eu estou rodando o meu serviço, não tem problema, Add exceptions to method signature, deixa jogar as exceptions, se eu for rodar eu deixo as exceptions rodarem.
+
+Da maneira que eu fiz aqui eu estou mandando rodar um EmailService que está aqui, deixa eu ver o que faltou, jogar as exceptions. 
+
+Com essa estrutura que eu fiz olha como ficou implementar um serviço, é só você implementar ConsumerService que são três métodos e você chama um new para executar ele, é só fazer isso, eu vou rodar uma vez, tem algum erro no final, a nossa função não pode ser privada, tem que ser “public”.
+
+Os líderes estão disponíveis e eu estou feliz com todo mundo rodando, agora eu tenho meu serviço, repararam como ficou simples? 
+
+É só eu definir qual é o meu ConsumerGroup, qual é o meu tópico e qual é o meu parse, eu vou querer melhorar isso um pouco, eu vou querer jogar isso para os outros serviços, mas antes eu quero rodar esse serviço 10 vezes.
