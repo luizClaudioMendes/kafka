@@ -120,6 +120,7 @@ terminado em
   - [camada de serviços](#camada-de-serviços)
     - [Extraindo uma camada de serviços](#extraindo-uma-camada-de-serviços)
     - [Paralelizando com pools de threads](#paralelizando-com-pools-de-threads)
+    - [Facilidade de criar novos serviços](#facilidade-de-criar-novos-serviços)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6437,3 +6438,51 @@ Se uma Thread estourar, vai ser criada uma nova thread, quer dizer, vai ficar co
 O newFixedThreadPool só faz isso, ele não resubmete, ficaríamos com 5, caiu, foi para 4, caiu foi para 3, caiu foi para 2, caiu foi para 1, já era, você poderia colocar esquemas para detectar quando os serviços caem, levanta de novo, você poderia fazer aqui dentro do serviço você tem esse processo com 5 clientes rodando ou você poderia fazer por processos rodando na máquina, ou nas máquinas como ferramentas que ficam analisando essas máquinas.
 
 Tem diversas maneiras de fazer isso, uma maneira simples é essa de rodar 5 em paralelo, da mesma maneira que fizemos com esse cara, podemos extrair todo esse código para o nosso CommonKafka, porque tudo isso está ligado com o Kafka de verdade e aplicar isso em outros serviços, eu vou querer aplicar em mais um serviço para vermos como ficará fácil a aplicação.
+
+### Facilidade de criar novos serviços
+Eu queria pegar agora um outro serviço nosso, o de reading-report, aquele que gera o relatório, eu queria paralisar ele, o que vamos fazer? 
+
+Pegar aquelas classes que eu criei dentro do service-email, que é o ConsumerService, ServiceFactory, ServiceProvider e ServiceRunner, essas quatro que eu tenho aqui e jogar dentro do CommonKafka, src, main, java, estas eu quero mover daqui para Consumer, tudo isso é Consumer, Refactor, movi lá para dentro, só ter certeza que está ok.
+
+ConsumerFunction, maravilha, ConsumerService, maravilha, o nosso de Email deveria rerodar novamente sem problemas, vamos conferir, vamos rodar ele de novo e se ele funcionar maravilha o que vamos fazer? 
+
+Também vamos fazer isso, isto é, lembram como funciona? 
+
+Implementamos ConsumerService.
+
+Então vamos aqui, implementamos, “ConsumerService”. ConsumerService do quê? 
+
+O que o ReadingReportService consome mesmo? 
+
+User, se ele consome User, temos algumas funções para implementar, Implement Methods.
+
+Eu não vou aproveitar esse parse porque ele já está implementado, ele só não é “public” por isso que está reclamando, agora que eu tenho os públicos, o tópico, qual é o tópico? 
+
+É esse aqui, eu jogo esse tópico para cá, o que mais? 
+
+O nosso ConsumerGroup, esse é o ConsumerGroup, aí você fala: “Você vai usar o ConsumerGroup sempre baseado em classe, podia retornar classe, ficava um pouco menos de código.” 
+
+Divirta-se, é a estrutura que você vai definir para sua própria empresa.
+
+A sacada é você ter uma camada que facilita todo esse trabalho para você, afinal se você tem que fazer isso 300 vezes, você não quer fazer tudo isso na mão 300 vezes, o que mais? 
+
+Queremos ter também esse método main, ele é muito mais simples, ele é simplesmente isso daqui, ele simplesmente arranca tudo e ele usa ao invés do EmailService, “ReadingReportService::new”.
+
+Está reclamando de alguma coisa, um não sobrescreve o outro, estou errando alguma coisa da sintaxe da interface, é ConsumerService, tem que ter um parse que recebe ConsumerRecord, coloquei string porque estava fixo, agora que é t é o usuário, maravilha, redondo, acabou.
+
+Olha o código de novo como ficou, eu quero executar 5, executa coloca qual é o tópico que você quer escutar, coloca qual o nome do seu ConsumerGroup e o que você quer fazer em cada um desses cinco, é só fazer. 
+
+Essa exception, vou adicionar para o nosso parse que antes não tinha, no nosso ConsumerService não tinha esse throws exception, deixa eu ver lá como está, se ficou alguém agora com possíveis exception, quando rodarmos descobriremos.
+
+Rodamos agora ReadingReportService, vou escolher um módulo, é o do reading-report, ele vai reclamar se tiver alguém que precisa ter um try catch extra que eu não coloquei aí, vamos ver, está lá, é capaz de já ter cinco deles rolando, vamos ver.
+
+Vou lá e dou um ConsumerGroups de novo, vamos ver os ConsumerGroups do tópico do Reading? 
+
+No tópico do USER_GENERATE_READING_REPORT, Está assim, tem a partição 2 que é o cliente c4b, a partição 1 que o 89 e a partição 0 que é o 84, fica muito mais simples de começarmos a criar os nossos serviços agora.
+
+Quer criar um serviço com suporte a Dead letter, com suporte a grande falha se não tiver o Dead letter, vai morrer aquele cara de vez, com suporte a multi thread, várias instâncias daquele serviço lá dentro? 
+
+Implementa a função parse fazendo o que você quiser, implementa qual é o trópico, implementa qual é o teu nome, o nome do seu grupo, só isso, ficou bem mais simples.
+
+Podemos dar um Build, Rebuild Project só para ter certeza de que está tudo buildando, não ficou nada sem compilar agora que fizemos algumas refatorações e maravilha.
+
