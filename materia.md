@@ -119,6 +119,7 @@ terminado em
     - [Micro serviços de email e fast delegate real](#micro-serviços-de-email-e-fast-delegate-real)
   - [camada de serviços](#camada-de-serviços)
     - [Extraindo uma camada de serviços](#extraindo-uma-camada-de-serviços)
+    - [Paralelizando com pools de threads](#paralelizando-com-pools-de-threads)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6339,3 +6340,100 @@ Com essa estrutura que eu fiz olha como ficou implementar um serviço, é só vo
 Os líderes estão disponíveis e eu estou feliz com todo mundo rodando, agora eu tenho meu serviço, repararam como ficou simples? 
 
 É só eu definir qual é o meu ConsumerGroup, qual é o meu tópico e qual é o meu parse, eu vou querer melhorar isso um pouco, eu vou querer jogar isso para os outros serviços, mas antes eu quero rodar esse serviço 10 vezes.
+
+### Paralelizando com pools de threads
+Nosso próximo passo é, ao invés de chamar essa função uma única vez eu quero chamá-la 10 vezes e deixar rodando, eu quero rodar em 10 Thread diferentes, se essa função run implementar “Runnable” podemos dar uma nova Thread em cima dele e deixar rodando, podemos dar 10.000 Threads e deixar rodando, é uma abordagem.
+
+Hoje em dia com as API mais recentes, já faz um bom tempo na verdade, a maneira educada é criar um executor, um fixer de Thread pool e mandar rodar neles, ao invés de eu fazer dessa maneira, o que eu vou falar? 
+
+Eu vou falar, o que eu quero mesmo para esse ServiceProvider são vários EmailService:new eu quero vários desses, não vou querer um só.
+
+Mas reparem que ele é Thread-safe, mesmo que eu instancie um único ServiceProvider, eu posso rodar isso quantas vezes eu quiser, já vou renomear essa variável para “myService”, esse é o meu serviço que é independente do e-mail.
+
+O que eu quero fazer agora? 
+
+Eu queria chamar essa função diversas vezes, ao invés do Runnable, é o “Callable” o que vamos fazer, se olharmos a interface do Callable o que rodamos é o call, a função é “call”, ela pode jogar exception, só tenham cuidado, ela devolve do tipo v e o tipo v você devolve aqui, eu vou falar que ela não devolve nada, é comum fazer isso void assim e eu tenho que dar um “return”, você pode decidir o que você vai devolver, vou devolver nulo, mas eu estou devolvendo void para nós.
+
+Faltou agora que esse cara não pode receber nenhum argumento, ele tem que ser público e jogar exception, aquele não está sobrescrevendo, por que ele não está sobrescrevendo ainda? 
+
+Por causa do t, tem que tirar esse t, agora sim.
+
+Isso quer dizer o quê? 
+
+Que é aqui que eu vou passar quem é o meu EmailService, quem é a minha Factory, eu vou falar, é esse que eu quero rodar várias vezes, o que eu vou fazer aqui? 
+
+Criar o Construtor, essa é a minha Factory, eu vou criar o field aqui dentro, esse é o meu field, o ServiceProvider é do tipo t de Strings, ele vai trabalhar com Strings, esse cara pode ser “final”, então aqui está redondo.
+
+Aqui eu estou passando o new e chamando o run, o run não era mais run, agora ele é call, até aqui tudo bem, estou chamando uma única vez, como é que eu faço para pegar um Callable e chamar diversas vezes? 
+
+Podemos fazer o seguinte, podemos fazer um “for(int i = 1)”, tem outras maneiras de fazer esses for.
+
+O que eu vou fazer? 
+
+Na verdade eu vou pegar uma “rangeClosed”, a range fechada é um import do “IntStream.rangeClosed()”, eu vou do 1 ao 5, eu tenho várias maneiras agora de fazer o meu laço para criar várias thread e executar.
+
+Uma maneira tranquila, eu vou usar essa maneira tranquila que eu prefiro misturar um pouco as coisas, eu vou criar um “newFixedThreadPool()” que eu vou falar qual é o número de thread que eu quero, esse é o meu número de “THREADS”, esse é o meu pool.
+
+E o que eu vou querer fazer para ele? 
+
+Para cada um desses números, “for(int i =0; i <= THREADS; i++)”, para cada um deles o que eu quero fazer? 
+
+Eu quero executar isso, aí você fala: “Guilherme, mas eu não preciso executar esse new toda vez.” 
+
+Sim, eu não preciso, esse seria o meu provider.call, aqui eu teria o meu “provider” e eu teria o provider.call aqui para cada um deles.
+
+Mas reparem, se é isso, é mais fácil chamar um ServiceProvider ”.start” e eu passo as “THREADS”, var provider eu posso tirar, esse eu posso tirar, criamos uma função start e é essa função start que vai startar tudo isso.
+
+Só tem que tomar um cuidado aqui, se eu fizer isso eu vou ficar com a função call e a função start que vai lembrar a classe thread de Java para quem já trabalhou com Java, que tem duas funções e você sempre chama a errada, eu prefiro evitar isso.
+
+Ao invés disso, isso daqui é o nosso serviço em si, então isso daqui é um “ServiceRunner”, Create ServiceRunner, o ServiceRunner vai receber o parâmetro que tem que receber, já descobrimos qual é e ele vai ter a função start, que vai startar as threads, vai ter um start que vamos fazer, “public void start”, que vai receber o “int threadCount” e vai fazer o threadCount para nós, para cada threadCount o que ele vai fazer? 
+
+Ele vai fazer “pool.invokeAll”.
+
+E eu posso passar diversos que eu quero que ele invoque e o que eu faço? 
+
+“pool.submit” e eu passo ou um Runnable, ou um Callable, lembram, o Runnable não podia jogar exception mas o Callable pode jogar exception, eu vou chamar um submit com esse Callable, quem é o meu Callable? 
+
+É o ServiceProvider.
+
+Se eu recebi um provider, eu poderia receber aqui direto um “ServiceProvider” do tipo “t” e o que eu faço? 
+
+Simplesmente uso esse provider, só que só um cuidado, como o ServiceProvider precisa da Factory conseguimos até esconder, jogamos ServiceFactory logo de cara e nós mesmos damos um “this.provider = new ServiceProvider(factory)”.
+
+Quer dizer, eu criei isso aqui, esse é meu ServiceRunner, ele cria um provider, esse t eu não preciso e o que mais ele faz? 
+
+Ele simplesmente submete esse “provider”, quer dizer que para a mesma instância desse objeto, ele vai chamar esse cara n vezes, threadCount vezes, é isso que ele faz, como ficou o nosso código final? 
+
+Fica simplesmente new ServiceRunner para esse cara e starta quantas threads eu quero, são 5 que eu vou startar.
+
+Eu fiquei com código super simples, eu só falo eu quero startar 5 e esses são os meus três métodos, com isso extraímos e escondemos todo esse nosso processo desses pequenos serviços, podemos rodar ele aqui.
+
+Eu tenho um cuidado que eu tomaria de rodar ele aqui, mas vamos dar uma olhada, quando rodarmos ele, lembra que o nosso EmailService vai receber o mesmo ConsumerGroup para todos, mas e o ClienteId é diferente para cada um deles? 
+
+Porque dentro de um ConsumerGroup eu tenho vários, devem ter 5 desses caras consumindo agora, será que eles tem id diferentes? 
+
+É só darmos uma olhada no nosso código, o nosso ServiceRunner cria o ServiceProvider que usa o KafkaService e o KafkaService cada um tem um id diferente.
+
+Vamos dar uma olhada, aqui eu deveria ter 5 caras consumindo se eu tenho 5 caras consumindo, cada um tem que estar com uma partição diferente e 2 sobrando, porque criamos só três partições, vamos ver, “bin/kafka-topics.sh”, bootstrap-server e describe, vamos ver os tópicos.
+
+O tópico que ele está escutando é o de enviar e-mail, ECOMMERCE_SEND_EMAIL, tem 3, não era o topics, era o ConsumerGroups, describe, vamos ver, SEND_EMAIL, a partição 0, está com esse Consumer aqui, a partição 2 está com esse Consumer e a partição 1 está com esse Consumer.
+
+Você fala: “Guilherme, mas e se der uma exception agora no nosso Consumer?” Imagina que consumimos e deu uma Dead letter, lembram do caso da Dead letter? 
+
+No nosso KafkaService deu uma Dead letter só que na Dead letter deu uma exception, então quer dizer, deu uma exception dentro da exception, lembram que é um caso perigoso, porque aqui dentro deu outra exception e essa outra exception explodiu, é bem ruim porque isso explode daqui do nosso run, do nosso KafkaService.
+
+O nosso KafkaService run está sendo chamado onde? 
+
+No run, quer dizer que isso daqui vai explodir, se isso explodir vai ser onde mesmo? 
+
+No nosso ServiceRunner? 
+
+Não, ele submeteu para acontecer e ele deixa rodando, submeteu e deixou rodando, então está rodando o EmailService, se uma thread, você vai ver que o newFixedThreadPool, o que ele faz? 
+
+A característica é, se alguma Thread terminar por causa de uma falha uma nova vai ser criada.
+
+Se uma Thread estourar, vai ser criada uma nova thread, quer dizer, vai ficar com 5 threads de novo, só que, reparem, submetemos exatamente 5 vezes, se temos 5 threads e para cada uma nós começamos um desses clientes, acontece que, se uma cair não levantar automaticamente, só levanta a thread, o cliente não é submetido novamente.
+
+O newFixedThreadPool só faz isso, ele não resubmete, ficaríamos com 5, caiu, foi para 4, caiu foi para 3, caiu foi para 2, caiu foi para 1, já era, você poderia colocar esquemas para detectar quando os serviços caem, levanta de novo, você poderia fazer aqui dentro do serviço você tem esse processo com 5 clientes rodando ou você poderia fazer por processos rodando na máquina, ou nas máquinas como ferramentas que ficam analisando essas máquinas.
+
+Tem diversas maneiras de fazer isso, uma maneira simples é essa de rodar 5 em paralelo, da mesma maneira que fizemos com esse cara, podemos extrair todo esse código para o nosso CommonKafka, porque tudo isso está ligado com o Kafka de verdade e aplicar isso em outros serviços, eu vou querer aplicar em mais um serviço para vermos como ficará fácil a aplicação.
