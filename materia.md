@@ -138,7 +138,8 @@ terminado em
       - [ENABLE_AUTO_COMMIT](#enable_auto_commit)
       - [AUTO_OFFSET_RESET_CONFIG](#auto_offset_reset_config-1)
       - [ISOLATION_LEVEL](#isolation_level)
-      - [Kafka Transactions (https://itnext.io/kafka-transaction-56f022af1b0c)](#kafka-transactions-httpsitnextiokafka-transaction-56f022af1b0c)
+      - [Kafka Transactions - assegurando que as mensagens sao consumidas somente uma vez (https://itnext.io/kafka-transaction-56f022af1b0c)](#kafka-transactions---assegurando-que-as-mensagens-sao-consumidas-somente-uma-vez-httpsitnextiokafka-transaction-56f022af1b0c)
+    - [O que aprendemos?](#o-que-aprendemos-16)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6827,7 +6828,7 @@ Esse é um post “simples” que mostra como ficaria esse processo se eu quero 
 
 Existe uma outra abordagem para fazermos isso e eu quero mostrar a outra abordagem que é mais natural, literalmente no sentido natural da palavra e vem de bônus para nós em diversas situações.
 
-#### Kafka Transactions (https://itnext.io/kafka-transaction-56f022af1b0c)
+#### Kafka Transactions - assegurando que as mensagens sao consumidas somente uma vez (https://itnext.io/kafka-transaction-56f022af1b0c)
 Kafka Transaction
 
 Photo by Annie Spratt on Unsplash
@@ -7047,3 +7048,7 @@ You can see the following wiki pages about the details to run the codes in this 
 
 https://github.com/mykidong/kafka-transaction-example/wiki/Run-Transactional-Kafka-Producer-and-Consumers
 https://github.com/mykidong/kafka-transaction-example/wiki/Scenario
+
+### O que aprendemos?
+* o problema de mensagens duplicadas
+* como usar commit manual e configurar os dois lados para offsets manuais
