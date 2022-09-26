@@ -121,6 +121,8 @@ terminado em
     - [Extraindo uma camada de serviços](#extraindo-uma-camada-de-serviços)
     - [Paralelizando com pools de threads](#paralelizando-com-pools-de-threads)
     - [Facilidade de criar novos serviços](#facilidade-de-criar-novos-serviços)
+    - [O que aprendemos?](#o-que-aprendemos-14)
+  - [](#)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -6486,3 +6488,9 @@ Implementa a função parse fazendo o que você quiser, implementa qual é o tr�
 
 Podemos dar um Build, Rebuild Project só para ter certeza de que está tudo buildando, não ficou nada sem compilar agora que fizemos algumas refatorações e maravilha.
 
+### O que aprendemos?
+* extraindo uma camada de interface de serviço
+* paralelizando com thread pools
+* simplicidade ao criar novos componentes
+
+## 
