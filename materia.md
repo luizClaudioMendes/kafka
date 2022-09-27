@@ -142,6 +142,7 @@ terminado em
     - [O que aprendemos?](#o-que-aprendemos-16)
   - [idempotencia](#idempotencia)
     - [Id natural e idempotência no banco](#id-natural-e-idempotência-no-banco)
+    - [O que aprendemos?](#o-que-aprendemos-17)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -7222,3 +7223,10 @@ Se eu tenho um processamento que é lento, que eu não quero executar mais de um
 Ou seja, ganhe isso de graça no seu Service, você coloca um Service que é Execute Once. 
 
 Então esse Execute Once Service já usa um banco de dados e uma tabelinha onde armazena quem já foi processado, é só sair extraindo e essa é a mágica de estarmos extraindo essas nossas camadas de gerenciamento do Kafka e do Banco de Dados aqui em cima, claro no banco você vai utilizar você quiser, etc.
+
+### O que aprendemos?
+* o que é idempotência
+* como implementá-la através de IDs naturais no banco
+* como extrair um módulo para banco de dados
+* idempotência e fast delegate
+* como lidar com idempotência em clientes externos
