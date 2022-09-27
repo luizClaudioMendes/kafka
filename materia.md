@@ -140,6 +140,8 @@ terminado em
       - [ISOLATION_LEVEL](#isolation_level)
       - [Kafka Transactions - assegurando que as mensagens sao consumidas somente uma vez (https://itnext.io/kafka-transaction-56f022af1b0c)](#kafka-transactions---assegurando-que-as-mensagens-sao-consumidas-somente-uma-vez-httpsitnextiokafka-transaction-56f022af1b0c)
     - [O que aprendemos?](#o-que-aprendemos-16)
+  - [idempotencia](#idempotencia)
+    - [Id natural e idempotência no banco](#id-natural-e-idempotência-no-banco)
 
 
 # Kafka: Produtores, Consumidores e streams
@@ -7052,3 +7054,171 @@ https://github.com/mykidong/kafka-transaction-example/wiki/Scenario
 ### O que aprendemos?
 * o problema de mensagens duplicadas
 * como usar commit manual e configurar os dois lados para offsets manuais
+
+## idempotencia
+### Id natural e idempotência no banco
+Por fim eu queria dizer que tem muitas situações onde achamos que não temos um id natural e uma dessas situações poderia mesmo ser uma requisição http, a pessoa fez um pedido, ela clicou no pedido, Enviar, quando ela clicou no pedido Enviar, ela não tem necessariamente, se for só uma compra simples sem um carrinho, sem alguma coisa do gênero o que mantém estado no servidor.
+
+Eu não tenho estado nenhum, não tenho informação nenhuma é simplesmente uma requisição http, uma requisição seja lá como for, pode ser uma requisição http do ser humano que fez um post, que clicou no formulário para ser enviado, pode ser uma requisição de um aplicativo que apertou no botão Desejo efetuar a reserva, então essa requisição de repente tem todas as informações da compra.
+
+Se ela tem todas as informações da compra e a pessoa dar um Refresh, o que acontece? 
+
+Do jeito que estamos fazendo, efetuamos a compra duas vezes, se o aplicativo tem todas as informações da compra na requisição http que ele vai fazer quando você apertar o botão visualmente bem rápido, o que acontece? 
+
+Você manda várias compras e do jeito que fizemos, geramos várias compras, porque o FastDelegate não é o suficiente para nós agora.
+
+Eu queria que você reparasse duas coisas, a primeira, por mais que tenhamos esse id você poderia falar que tem situações em que eu não tenho um id que eu estou gerando aqui, temos o CorrelationId. 
+
+Lembra que o CorrelationId usa quem está gerando a nossa mensagem mais o id para identificar essa mensagem de forma única, quer dizer, toda mensagem do nosso sistema - porque criamos uma camada em cima do Kafka - possui esse identificador único.
+
+Poderíamos usá-lo para saber se aquele ConsumerGroup já processou aquela mensagem, o CorrelationId dela, se no seu CorrelationId você não tivesse unicidade, não daria para fazer isso, mas em um CorrelationId sem unicidade não serve para relacionarmos o caminho que a mensagem está fazendo, claro, esses ids são super longos, talvez só um uuid seja o suficiente para você.
+
+O FastDelegate na maior parte das vezes já resolve, mesmo do celular, mesmo no do browser, o que acontece? 
+
+Quando você aperta o botão do celular, ou dá um click no navegador, qual é a primeira coisa que o pessoal que programa FrontEnd faz? 
+
+É desativar o botão.
+
+E a segunda coisa é mostrar que está processando, porque esse primeiro você mostra que está processando e dá tempo para outra Thread, se é que é um ambiente multithread, ou na mesma Thread, um evento de clicar novamente você deu espaço para duas vezes a mesma requisição.
+
+A primeira coisa é desativar o botão de processar novamente, de clicar, a segunda coisa é mostrar que está processando, se recebeu uma mensagem de sucesso, beleza, senão ninguém sabe direito o que aconteceu, talvez a mensagem tenha ido por completo e não recebemos a resposta, se não conseguimos enviar nada, o servidor não estava lá ficamos sabendo, mas se nós enviamos e o servidor não deu resposta, não sabemos se ele processou ou não.
+
+Existem algumas delicadezas no cliente final, clientes http que não é o nosso caso, o que estamos trabalhando aqui é a parte de mensageria, os nossos cursos de clientes http de API rest, de serviços, ou os nossos cursos de aplicações mobile cliente vai ter esse tipo de discussão.
+
+Para nós, o que podemos fazer? 
+
+Vamos supor, estamos tentando nos proteger, vamos supor que por acaso a pessoa que programa aquela parte do aplicativo, ou a parte da frente do desktop, ou web seja lá o que for, por qualquer motivo ela conseguiu apertar duas vezes o mesmo botão.
+
+O que fazemos? 
+
+O que fazemos é o seguinte, quem aperta o botão lá no cliente, no navegador, no aplicativo no celular, não importa, lá no cliente, ele gera um id para nós, quem chama o http também manda id para nós, se o ponto de entrada do meu serviço é uma mensagem, eu tenho um id único sempre.
+
+Por quê? 
+
+Porque é o CorrelationId que as pessoas estão me mandando, se você manda mensagem dentro dos meus serviços você usa o CommonKafka, se você usa o CommonKafka, você tem que passar um CorrelationId, se você passa um CorrelationId, eu garanto que ele é único, poderíamos garantir mais ainda o nosso send concatenando mais um id lá. 
+
+No pior dos casos teríamos isso, quando é mensageria temos um id único, porque garantimos isso.
+
+E quando não é? 
+
+E quando é http? 
+
+Como garantimos? 
+
+Na requisição http, no seu servidor http, você também vai querer ter algum tipo de filtro, eu não vou implementar um filtro aqui porque vai ter depender 100% do framework que você utiliza http, o filtro que eu vou aplicar aqui, a maneira de verificar isso é garantir que os seus clientes, sejam desktop, aplicativo, browser, não me importa, os seus clientes enviem para você um id único.
+
+Assim como a mensagem tem um id único para identificar aquela requisição, quando você vai apertar o botão de enviar no seu aplicativo, ele vai te enviar um id único, mas se você apertar de novo, ele vai mandar o mesmo id e se você apertar de novo, o mesmo id, isto é, o seu aplicativo, quando está preparando um processo de compra, ele já gera um id lá dentro, o uuid dele, próprio. 
+
+No desktop, quando você está em uma tela que tem um botão de comprar você já gera um id único ali.
+
+Você fala, mas a pessoa poderia ir lá nos parâmetros e mudar os parâmetros de envio desses ids, se uma compra já foi feita com esse id, a compra dele não será processada, vai ser ignorada. 
+
+Ignora, a pessoa foi lá e mudou o id porque quis, você não vai fazer nada, não é uma falha de segurança e com isso a pessoa vai comprar de graça com o e-mail da outra pessoa, você só está ignorando, se eu só estou ignorando, tudo bem, só que esse é um cuidado que você precisa ter de só ignorar.
+
+Como vamos fazer isso? 
+
+São duas partes, a primeira é, temos que receber esse id do cliente, é o filtro que eu disse, garantir que o cliente envie. 
+
+No meu caso, **para garantir que o cliente envie é muito fácil, "req.getParameter( s: "uuid");"**, pronto, toda compra tem um uuid seja no aplicativo do cliente do celular, seja no browser, seja onde for, você tem que me passar um uuid e é esse uuid que eu vou utilizar para você, então garanti.
+
+Calma, quase garanti, por quê? 
+
+Vou precisar do uuid, eu mando, o sistema de fraude só vai executar uma vez, mas os outros ainda vão ser executados, lembram, tem outras pessoas escutando, o ECOMMERCE_NEW_ORDER, não é só o FraudDetectorService que está escutando o ECOMMERCE_NEW_ORDER, os outros também vão escutar, então eu teria que implementar o mesmo client-table em todos eles.
+
+O da fraude temos um ganho porque vai ser rápido, ao invés de eu perder aqueles cinco segundos, ou que fosse meia hora para processar a fraude, o tempo que fosse, eu já tenho o ganho de deixar aqui, mas seria legal que, entre o NewOrderServlet e todos esses outros, eu tivesse alguém que fizesse essa garantia para mim, Order foi recebida.
+
+Quer dizer, o primeiro de todos os pontos, esse FastDelegate vai ser, em geral, para um único tópico que só um ConsumerGroup está escutando, porque nesse ConsumerGroup você consegue garantir que facilmente, uma única vez em um banco local só vai ser processada essa compra, que é um processo super complexo, com várias mensagens e etc, uma única vez.
+
+Eu vou colocar alguém ali no meio desses vários ns que eu tenho aqui, porque esse alguém que é um ConsumerGroup, ao invés de vários ConsumerGroup, com quantas instâncias eu quiser, o que ele vai fazer? 
+
+Ele garante que a ordem só é processada uma única vez.
+
+Poderia ser no meu próprio HttpServlet afinal o meu próprio HttpServlet pode usar o local_database, a vantagem do Common. 
+
+Poderíamos ter as duas abordagens, serviço http não pode acessar banco de dados, eu coloco alguém no meio, ou não, serviços http podem acessar banco de dados, eu coloco o código no próprio HttpServlet, depende das responsabilidades, você decide quais são as responsabilidades que você quer ter, você decide isso, você que vai saber se você quer fazer isso ou não.
+
+Pessoalmente eu vou preferir separar, por quê? 
+
+Porque eu envio a mensagem, eu sei que ela está no log do Kafka, a partir de agora as coisas acontecem, eu vou fazer a abordagem de colocarmos na própria Servlet, porque assim vemos todos os casos, o caso em que temos o local_database em dois Services e o caso em que temos o local_database em uma Servlet, em uma classe http, em algum servidor http.
+
+Como vai funcionar? 
+
+Da mesma maneira de sempre, vamos colocar aqui alguém que trabalha com banco de dados, pode colocar aqui, não, porque uma Servlet, ela pode receber várias requisições ao mesmo tempo, vários NuGets ao mesmo tempo e o Connection não, então não dá para colocar aqui.
+
+O que eu tenho que fazer? 
+
+A cada requisição eu vou ter que abrir o banco de dados ou alguma outra maneira, ter um pool de conexões, sincronizar o acesso, fazer alguma coisa do gênero. 
+
+O que eu vou fazer? 
+
+Eu vou deixar abrindo e fechando a conexão uma vez a cada requisição, que é ruim, não é bom, o ideal é trabalhar com pool de conexões, mas como estamos trabalhando com SQLite local sem nenhum framework, sem nenhuma biblioteca, está ótimo.
+
+O que eu vou fazer? 
+
+Antes de enviar a mensagem, eu já tenho a minha compra, minha compra está aqui, o que eu faço com essa minha compra? 
+
+Eu vou querer um LocalDatabase, é o mesmo código de antes, esse é o meu LocalDatabase.
+
+O que eu poderia chamar esse cara? 
+
+Eu poderia chamar ele do meu “OrdersDatabase”, eu vou chamar o “new OrdersDatabase”, “var database”, crio esse meu new OrdersDatabase, vou pegar com o construtor, ele tem o meu LocalDatabase, ele é o OrdersDatabase que fica no projeto da Servlet, percebam que eu tenho três bancos mesmo e é isso mesmo, cada serviço tem o seu próprio banco.
+
+Vou importar, importei a classe, no meu caso eu preciso justamente disso, do uuid e eu precisaria das outras informações se eu quisesse armazenar as outras informações, por mim eu vou armazenar só o uuid para mim, o ideal seria armazenar todos os campos, fazer tudo redondo para que você possa recuperar, como você quiser, eu vou deixar anotado, “ // you might want to save all data”.
+
+Eu tenho o meu banco de dados, agora que eu tenho o banco de dados que pode dar uma Exception, eu vou colocar o Catch aqui, já está lá, “Add exception to existing catch clause”, eu vou colocar na mesma, ficou na mesma as duas então eu já vou deixar as três na mesma inclusive, não sei porque da primeira vez de todos ele não fez assim para nós, seria mais prático, digitei errado alguma coisa.
+
+Eu tenho as três Exceptions, temos o Database o que queremos fazer? “if(database.saveNew(order))”, se ele salvou essa nova Order, essa daqui é uma nova Order. 
+
+Se ele não salvou essa nova Order, não salvou, no meu caso ele não vai salvar, ele vai retornar false somente se ela não for uma nova Order, “Old order received”, ele já recebeu essa Order.
+
+O que precisamos fazer? 
+
+A função saveNew. 
+
+O quea saveNew faz? 
+
+Ela recebe uma Order e vai trabalhar como o FraudDetector, ela faz um se for uma nova ordem ele vai fazer um insert into Orders, só o uuid, o Order tem getter?
+
+Está sem getter, “getOrderId”, estamos salvando o update, posso dar um “throws Exception”, só que temos que fazer isso em só um if, se for fraude ou não, aquele ele fez um if se for fraude e se já foi processada, if wasProcessed, é esse que precisamos também.
+
+Vamos colocar aqui o wasProcessed, “if(wasProcessed(order))”, então retorna false, porque não é nova. 
+
+Se ela for nova, retorna true, estou procurando na Order essa Order, se eu achei é porque já foi processada e eu falo que ela não é nova e eu falo para ele, nesse caso já tinha recebido, é velha. 
+
+Senão eu insiro uma nova, mando a mensagem e começo o processo.
+
+A sacada é essa, todo ponto de comunicação tem seu próprio id único, seja mensagem, seja http, seja serviço, seja lá o que for, não importa, tem seu id único gerado pelos seus clientes, se o seu cliente reutilizar um id que já tinha sido usado, o seu cliente que errou, vai ser ignorada a mensagem do seu cliente, com razão.
+
+O que o pessoal costuma fazer? 
+
+Coloca o timestamp junto com o id ou coloca um uuid baseado em timestamp, assim você garante que sempre está sendo único, etc, várias maneiras de fazer isso, os algoritmos para você escolher a geração de id, temos o nosso OrderServlet rodando no HttpEcommerceService, vamos restartar, ou torcer para restartar, eu torço para não ter esquecido nada.
+
+Faltou eu fechar o banco, muito cuidado que falta fechar, eu vou dar um “try” nesse cara, vou fechar ele no final e o que faltou é o nosso OrdersDatabase implementar “Closeable” e no Closeable dele chamamos um “database.close” que não existe, criamos o método “close” que chama um “connection.close” e fecha a conexão, dá um “throws Exception”, fechei, aqui damos um “throws SQLException” e o SQLException não funciona se queremos um Closeable então vou ter que deixar um IOException e trocar por um try catch.
+
+Aqui eu tenho o meu OrdersDatabase redondo, importei tudo direito, restarto nosso colega, restartando, vamos testar agora, agora estou abrindo e fechando o banco, reparem que esse é o OrdersDatabase dentro de projeto, aí está o cuidado que tem que tomar, vamos ver se eu estou tomando esses cuidados, não tenho certeza, Edit Configurations.
+
+O HttpEcommerceService tem que rodar no projeto dele, eu quero rodar ele dentro do projeto do módulo, o CreateUser também é dentro do próprio módulo, o FraudDetector é dentro do próprio módulo e por aí vai, todos que usam arquivo eu quero rodar no próprio módulo, acho que eu rodei o ReadingService, será que eu rodei ele? 
+
+Não sei, mas não me importo porque eu não vou usar ele.
+
+O HttpEcommerceService, vou rodar, o Fraud, vou rodar de novo, o CreateUser, vou rodar de novo, já que estava rodando e o EmailNewOrder vou rodar de novo, já que estava rodando, estou rodando todo mundo que tava rodando, de novo, estou torcendo para ninguém dar uma exception que eu não esperava, não espero nenhuma mesmo e vamos rodar agora o HttpEcommerce.
+
+Lembram, o Ecommerce agora recebe o id, eu vou colocar um uuid que não é de verdade, só o número “1234” para vermos recebendo essa mensagem, enviamos, o CreateUserService deve ter recebido, NewOrderServlet com os dados e o Payload é uma Order, a Order não estamos importando, não está mostrando aqui então não vimos os dados, não fiz o toString dele, não tem problema.
+
+O FraudDetectorService recebeu do guilherme e é uma fraude, o id 1234, é uma fraude, deixa eu tentar de novo, tentei, o HttpEcommerceService falou o quê? 
+
+Deu uma Exception, SQL error os missing database (table Orders already exist), é aquela Exception que é ignorada, o que ele fala logo depois? 
+
+Old order received, nem foi para o FraudDetectorService, nem chegou no FraudDetectorService.
+
+Se eu quisesse, é claro, eu poderia tirar isso daqui só temporariamente, só para vermos, “if not new”, vou restartar esse daqui, só para vermos chegar no FraudDetectorService e o FraudDetectorService falar, já tinha olhado essa sua Order, vamos ver, vou tentar, ele vai enviar, ele chega no FraudDetectorService que fala, eu já tinha processado.
+
+Colocamos em dois pontos a validação, uma na nossa própria Servlet, o ponto de entrada tem que ter a validação, porque se a pessoa apertar o botão várias vezes por qualquer motivo, não queremos que isso aconteça. 
+
+Então alguém muito rápido tem que ter essa validação de que algum id único seja gerado para o cliente final, seja gerado por mim, bloqueia, idempotência, a partir daqui eu não processo de novo.
+
+Se eu tenho um processamento que é lento, que eu não quero executar mais de uma vez, eu também adiciono esse tipo de validação se aquela mensagem já foi processada ou não, podemos utilizar aquele conjunto de informações que foi visto naquele post, podemos utilizar os nossos CorrelationIds ou algum id natural, se você for usar sempre o seu CorrelationId dá até para extrair isso no framework do Common-database, ou no CommonDatabaseKafka, ou no Kafka para que venha de “graça” isso para nós.
+
+Ou seja, ganhe isso de graça no seu Service, você coloca um Service que é Execute Once. 
+
+Então esse Execute Once Service já usa um banco de dados e uma tabelinha onde armazena quem já foi processado, é só sair extraindo e essa é a mágica de estarmos extraindo essas nossas camadas de gerenciamento do Kafka e do Banco de Dados aqui em cima, claro no banco você vai utilizar você quiser, etc.

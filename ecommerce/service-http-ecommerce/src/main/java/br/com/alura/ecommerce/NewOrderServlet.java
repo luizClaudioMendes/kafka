@@ -9,7 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.UUID;
+import java.sql.SQLException;
 import java.util.concurrent.ExecutionException;
 
 public class NewOrderServlet extends HttpServlet implements Servlet {
@@ -29,22 +29,29 @@ public class NewOrderServlet extends HttpServlet implements Servlet {
             var email = req.getParameter("email");
             var amount = new BigDecimal(req.getParameter("amount"));
 
-            var orderId = UUID.randomUUID().toString();
+            var orderId = req.getParameter("uuid");// id usado para idempotencia vinda do cliente
 
             var order = new Order(orderId, amount, email);
-            orderDispatcher.send("ECOMMERCE_NEW_ORDER", email,
-                    new CorrelationId(NewOrderServlet.class.getSimpleName()),
-                    order);
 
-            System.out.println("Processo da nova compra terminado");
+            try(var database = new OrdersDatabase()) {
 
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.getWriter().println("New Order sent");
-        } catch (ExecutionException e) {
-            throw new ServletException(e);
-        } catch (InterruptedException e) {
-            throw new ServletException(e);
-        } catch (IOException e) {
+                if (database.saveNewOrder(order)) {
+                    orderDispatcher.send("ECOMMERCE_NEW_ORDER", email,
+                            new CorrelationId(NewOrderServlet.class.getSimpleName()),
+                            order);
+
+                    System.out.println("Processo da nova compra terminado");
+
+                    resp.setStatus(HttpServletResponse.SC_OK);
+                    resp.getWriter().println("New Order sent");
+                } else {
+                    System.out.println("Old order received");
+
+                    resp.setStatus(HttpServletResponse.SC_OK);
+                    resp.getWriter().println("Old Order sent");
+                }
+            }
+        } catch (ExecutionException | InterruptedException | IOException | SQLException e) {
             throw new ServletException(e);
         }
     }
